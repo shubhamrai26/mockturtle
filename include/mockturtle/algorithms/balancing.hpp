@@ -43,9 +43,35 @@
 
 #include "../traits.hpp"
 #include "../utils/node_map.hpp"
+#include "../utils/stopwatch.hpp"
 
 namespace mockturtle
 {
+
+struct balancing_params
+{
+  /*! \brief Update levels after each node substitution.
+   *
+   * Enabling this flag yields higher precision, but also makes the algorithm
+   * slower.
+   */
+  bool update_levels{true};
+
+  /*! \brief Be verbose. */
+  bool verbose{false};
+};
+
+struct balancing_stats
+{
+  /*! \brief Total time. */
+  stopwatch<>::duration time_total{0};
+
+  /*! \brief Prints report. */
+  void report() const
+  {
+    std::cout << fmt::format( "[i] total time = {:>5.2f} secs\n", to_seconds( time_total ) );
+  }
+};
 
 namespace detail
 {
@@ -54,10 +80,12 @@ template<class Ntk>
 class balancing_impl
 {
 public:
-  explicit balancing_impl( Ntk& ntk ) : ntk( ntk ) {}
+  explicit balancing_impl( Ntk& ntk, balancing_params const& ps, balancing_stats& st ) : ntk( ntk ), ps( ps ), st( st ) {}
 
   void run()
   {
+    stopwatch t( st.time_total );
+  
     const auto orig_gates = ntk.num_gates();
     ntk.foreach_gate( [&]( auto const& n, auto i ) {
       if ( i >= orig_gates )
@@ -72,12 +100,19 @@ public:
           restructure_and( n );
         }
       }
+
+      if constexpr ( has_is_xor_v<Ntk> )
+      {
+        if ( ntk.is_xor( n ) )
+        {
+        }
+      }
       return true;
     } );
   }
 
 private:
-  //template<bool enabled = has_is_and_v<Ntk>, typename = std::enable_if_t<std::is_same_v<Ntk, Ntk> && enabled>
+  template<bool enabled = has_is_and_v<Ntk>, typename = std::enable_if_t<std::is_same_v<Ntk, Ntk> && enabled>>
   void restructure_and( node<Ntk> const& n )
   {
     unordered_node_map<std::unordered_set<signal<Ntk>>, Ntk> trans_fanin( ntk );
@@ -108,23 +143,26 @@ private:
 
     std::vector<uint32_t> levels;
     std::vector<std::pair<uint32_t, signal<Ntk>>> level_pairs;
-    //std::cout << fmt::format( "[i] node {} has fanin", n );
     for ( auto const& s : fanin )
     {
       levels.push_back( ntk.level( ntk.get_node( s ) ) );
       level_pairs.emplace_back( ntk.level( ntk.get_node( s ) ), s );
-      //std::cout << fmt::format( " {}{} (lvl {})", ntk.is_complemented( s ) ? "~" : "", ntk.get_node( s ), ntk.level( ntk.get_node( s ) ) );
     }
-    //std::cout << "\n";
     std::sort( levels.begin(), levels.end() );
     std::sort( level_pairs.begin(), level_pairs.end(), []( auto const& p1, auto const& p2 ) { return p1.first < p2.first; } );
     const auto old_level = ntk.level( n );
     const auto new_level = depth_from_arrival_times( levels );
     if ( old_level > new_level )
     {
-      std::cout << fmt::format( "[i]  old depth = {}, new depth = {}\n", old_level, new_level );
+      if ( ps.verbose )
+      {
+        std::cout << fmt::format( "[i]  old depth = {}, new depth = {}\n", old_level, new_level );
+      }
       ntk.substitute_node( n, create_nary_and( level_pairs ) );
-      ntk.update_levels();
+      if ( ps.update_levels )
+      {
+        ntk.update_levels();
+      }
     }
   }
 
@@ -166,12 +204,14 @@ private:
 
 private:
   Ntk& ntk;
+  balancing_params const& ps;
+  balancing_stats& st;
 };
 
 } // namespace detail
 
 template<class Ntk>
-void balancing( Ntk& ntk )
+void balancing( Ntk& ntk, balancing_params const& ps = {}, balancing_stats *pst = nullptr )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_get_node_v<Ntk>, "Ntk does not implement the get_node method" );
@@ -179,7 +219,17 @@ void balancing( Ntk& ntk )
   static_assert( has_foreach_gate_v<Ntk>, "Ntk does not implement the foreach_gate method" );
   static_assert( has_level_v<Ntk>, "Ntk does not implement the level method" );
 
-  detail::balancing_impl<Ntk>( ntk ).run();
+  balancing_stats st;
+  detail::balancing_impl<Ntk>( ntk, ps, st ).run();
+
+  if ( ps.verbose )
+  {
+    st.report();
+  }
+  if ( pst )
+  {
+    *pst = st;
+  }
 }
 
 } // namespace mockturtle
