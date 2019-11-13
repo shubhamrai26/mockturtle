@@ -11,7 +11,7 @@
 
 namespace percy
 {
-    const int MAX_STEPS = 20; /// The maximum number of steps we'll synthesize
+    const int MAX_STEPS =  20; /// The maximum number of steps we'll synthesize
     const int MAX_FANIN =  5; /// The maximum number of fanins per step we'll synthesize
 
     /// The various methods types of synthesis supported by percy.
@@ -75,7 +75,7 @@ namespace percy
     enum Primitive
     {
         MAJ,
-        AIG
+        AIG,
     };
 
     /// Used to gather data on synthesis experiments.
@@ -103,6 +103,7 @@ namespace percy
             std::vector<int> triv_functions; ///< Trivial outputs
             std::vector<int> synth_functions; ///< Nontrivial outputs
             std::vector<kitty::dynamic_truth_table> compiled_primitives; ///< Collection of concrete truth tables induced by primitives
+            std::vector<kitty::dynamic_truth_table> compiled_functions;
 
         public:
             int fanin = 2; ///< The fanin of the Boolean chain steps
@@ -232,7 +233,7 @@ namespace percy
                         // Even when the output is not trivial, we still need
                         // to ensure that it's normal.
                         if (!((triv_flag >> h) & 1)) {
-                            if (!is_normal(functions[h])) {
+                            if (!kitty::is_normal(functions[h])) {
                                 out_inv |= (1 << h);
                             }
                             synth_functions[nr_nontriv++] = h;
@@ -320,6 +321,35 @@ namespace percy
                 return synth_functions[i];
             }
 
+            void add_primitive( kitty::dynamic_truth_table const& tt )
+            {
+              /* a primitive is a gate function */
+              assert( tt.num_vars() == fanin );
+              compiled_primitives.emplace_back( tt );
+            }
+
+            void add_function( kitty::dynamic_truth_table const& tt )
+            {
+              /* a function is an internal function */
+              // assert( tt.num_vars() == nr_in );
+
+              /* the function must be normal */
+              assert( kitty::get_bit( tt, 0 ) == false );
+
+              compiled_functions.emplace_back( tt );
+            }
+
+            uint32_t get_nr_compiled_functions() const
+            {
+              return compiled_functions.size();
+            }
+
+            kitty::dynamic_truth_table get_compiled_function( uint32_t index ) const
+            {
+              assert( index < compiled_functions.size() );
+              return compiled_functions.at( index );
+            }
+
             void set_primitive(Primitive primitive)
             {
                 compiled_primitives.clear();
@@ -358,11 +388,16 @@ namespace percy
                 return compiled_primitives;
             }
 
+            const std::vector<kitty::dynamic_truth_table>&
+            get_compiled_functions() const
+            {
+              return compiled_functions;
+            }
+
             void clear_primitive()
             {
                 compiled_primitives.clear();
             }
-
     };
 
 }

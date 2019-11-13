@@ -659,7 +659,7 @@ namespace percy
             int idx) {
             kitty::dynamic_truth_table tt(2);
             do {
-                if (is_normal(tt) && !is_trivial(tt)) {
+                if (kitty::is_normal(tt) && !kitty::is_trivial(tt)) {
                     chain.set_step(idx, _js[idx], _ks[idx], tt);
                     const auto found = search_sol(spec, chain, dag, idx + 1);
                     if (found) {
