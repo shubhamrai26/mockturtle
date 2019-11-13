@@ -294,6 +294,25 @@ public:
     spec.add_symvar_clauses = _ps.add_symvar_clauses;
     spec.conflict_limit = _ps.conflict_limit;
     spec[0] = function;
+
+    /* bootstrapping */
+    std::vector<signal<Ntk>> signals( begin, end );
+    {
+      for ( const auto& bf : bfs )
+      {
+        if ( kitty::is_normal( bf.second ) )
+        {
+          signals.push_back( ntk.make_signal( bf.first ) );
+          spec.add_function( bf.second );
+        }
+        else
+        {
+          signals.push_back( !ntk.make_signal( bf.first ) );
+          spec.add_function( ~bf.second );
+        }
+      }
+    }
+
     bool with_dont_cares{false};
     if ( !kitty::is_const0( dont_cares ) )
     {
@@ -331,7 +350,6 @@ public:
       return;
     }
 
-    std::vector<signal<Ntk>> signals( begin, end );
 
     for ( auto i = 0; i < c->get_nr_steps(); ++i )
     {
@@ -364,9 +382,15 @@ public:
     fn( c->is_output_inverted( 0 ) ? !signals.back() : signals.back() );
   }
 
+  void set_bootstrap_functions( std::vector<std::pair<aig_network::node,kitty::dynamic_truth_table>> const& fs )
+  {
+    bfs = fs;
+  }
+
 private:
   bool _allow_xor = false;
   exact_resynthesis_params _ps;
+  std::vector<std::pair<aig_network::node, kitty::dynamic_truth_table>> bfs;
 };
 
 } /* namespace mockturtle */

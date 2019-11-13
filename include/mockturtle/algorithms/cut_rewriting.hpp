@@ -390,6 +390,33 @@ struct unit_cost
   }
 };
 
+template<typename Ntk>
+void compute_tfo_recur( Ntk const& ntk, std::vector<typename Ntk::node>& visited, typename Ntk::node const& node, uint32_t dist, uint32_t max_dist )
+{
+  if ( dist >= max_dist )
+    return;
+
+  /* visited the next */
+  if ( std::find( visited.begin(), visited.end(), node ) != visited.end() )
+    return;
+  visited.emplace_back( node );
+
+  ntk.foreach_fanout( node, [&]( const auto& f ){
+      compute_tfo_recur( ntk, visited, f, dist+1, max_dist );
+    } );
+}
+
+template<typename Ntk>
+std::vector<typename Ntk::node> compute_tfo( Ntk const& ntk, std::vector<typename Ntk::signal> const& children )
+{
+  std::vector<typename Ntk::node> visited;
+  for ( const auto& c : children )
+  {
+    compute_tfo_recur( ntk, visited, ntk.get_node( c ), 0, 3 );
+  }
+  return visited;
+}
+
 template<class Ntk, class RewritingFn, class NodeCostFn>
 class cut_rewriting_impl
 {
@@ -452,6 +479,31 @@ public:
           children.push_back( ntk.make_signal( ntk.index_to_node( l ) ) );
         }
 
+        if constexpr ( has_foreach_fanout<Ntk>::value )
+        {
+          auto const tfo = compute_tfo( ntk, children );
+
+          cut_view cutv{ntk,children,n};
+          std::vector<node<Ntk>> in_cut;
+          cutv.foreach_node( [&]( auto const& n ){
+              in_cut.emplace_back( n );
+            });
+          /* simulte */
+          default_simulator<kitty::dynamic_truth_table> sim( children.size() );
+          auto const node_map = simulate_nodes<kitty::dynamic_truth_table, Ntk>( cutv, sim );
+
+          std::vector<std::pair<typename Ntk::node,kitty::dynamic_truth_table>> node_value_pairs;
+          for ( const auto& n : tfo )
+          {
+            /* filter nodes out that are in the cut */
+            if ( std::find( in_cut.begin(), in_cut.end(), n ) != in_cut.end() )
+              continue;
+
+            node_value_pairs.emplace_back( n, node_map[n] );
+          }
+
+          rewriting_fn.set_bootstrap_functions( node_value_pairs );
+        }
         int32_t value = recursive_deref( n );
         {
           stopwatch t( st.time_rewriting );

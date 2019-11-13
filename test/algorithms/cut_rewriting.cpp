@@ -190,3 +190,29 @@ TEST_CASE( "Cut rewriting with alternative costs", "[cut_rewriting]" )
   CHECK( mig.num_pos() == 1 );
   CHECK( mig.num_gates() == 1 );
 }
+
+TEST_CASE( "Cut rewriting with function bootstrapping", "[cut_rewriting]" )
+{
+  aig_network aig;
+  const auto a = aig.create_pi();
+  const auto b = aig.create_pi();
+  const auto c = aig.create_pi();
+  const auto d = aig.create_pi();
+
+  auto const f0 = aig.create_maj( a, b, c );
+  auto const f1 = aig.create_maj( a, f0, c );
+  auto const f2 = aig.create_maj( a, f0, b );
+  auto const f3 = aig.create_maj( f0, f1, f2 );
+  auto const f4 = aig.create_maj( a, b, d );
+  auto const f5 = aig.create_maj( b, f4, c );
+  auto const f6 = aig.create_maj( b, f4, d );
+  auto const f7 = aig.create_maj( f4, f5, f6 );
+  aig.create_po( f3 );
+  aig.create_po( f7 );
+
+
+  exact_aig_resynthesis<aig_network> resyn( 3 );
+  cut_rewriting( aig, resyn );
+  aig = cleanup_dangling( aig );
+
+}

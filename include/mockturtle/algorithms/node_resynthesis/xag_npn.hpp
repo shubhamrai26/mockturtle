@@ -200,6 +200,11 @@ public:
     }
   }
 
+  void set_bootstrap_functions( std::vector<std::pair<typename Ntk::node,kitty::dynamic_truth_table>> const& fs )
+  {
+    (void)fs;
+  }
+
 private:
   signal<Ntk>
   copy_db_entry( Ntk& ntk, node<DatabaseNtk> const& n, std::unordered_map<node<DatabaseNtk>, signal<Ntk>>& db_to_ntk ) const

@@ -71,6 +71,11 @@ public:
   {
     fn( akers_synthesis<Ntk>( ntk, function, ~function.construct(), begin, end ) );
   }
+
+  void set_bootstrap_functions( std::vector<std::pair<typename Ntk::node,kitty::dynamic_truth_table>> const& fs )
+  {
+    (void)fs;
+  }
 };
 
 } /* namespace mockturtle */

@@ -128,6 +128,11 @@ public:
     }
   }
 
+  void set_bootstrap_functions( std::vector<std::pair<mig_network::node,kitty::dynamic_truth_table>> const& fs )
+  {
+    (void)fs;
+  }
+
 private:
   void build_db()
   {
