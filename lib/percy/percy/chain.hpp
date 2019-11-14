@@ -32,7 +32,7 @@ namespace percy
 
         public:
             chain() 
-            {
+            { 
                 reset(0, 0, 0, 0);
             }
             chain(const chain& c) 
@@ -87,10 +87,7 @@ namespace percy
 
             void set_compiled_functions( std::vector<dynamic_truth_table> const& fs )
             {
-              std::cout << "set_compiled_functions" << std::endl;
               compiled_functions = fs;
-              std::cout << compiled_functions.size() << std::endl;
-              std::cout << fs.size() << std::endl;
             }
 
             void
@@ -303,9 +300,9 @@ namespace percy
                 std::vector<dynamic_truth_table> fs(outputs.size());
                 std::vector<dynamic_truth_table> tmps(steps.size());
                 std::vector<dynamic_truth_table> ins;
-                for ( auto i = 0; i < nr_in; ++i )
-                {
-                  ins.push_back( kitty::create<dynamic_truth_table>( nr_in ) );
+
+                for ( auto i = 0; i < nr_in; ++i ) {
+                    ins.push_back( kitty::create<dynamic_truth_table>( nr_in ) );
                 }
 
                 auto tt_step = kitty::create<dynamic_truth_table>(nr_in);
@@ -326,16 +323,16 @@ namespace percy
                     }
                 }
 
-                for (auto i = 0u; i < steps.size(); i++)
-                {
+                for (auto i = 0u; i < steps.size(); i++) {
                   const auto& step = steps[i];
 
                   for ( int j = 0; j < fanin; ++j )
                   {
                     const auto fanin = step[j];
+                    // std::cout << fanin << ' ';
                     if ( fanin < nr_in )
                     {
-                      create_nth_var( ins[j], fanin );
+                      create_nth_var(ins[j], fanin);
                     }
                     else if ( fanin < nr_in + compiled_functions.size() )
                     {
@@ -353,9 +350,7 @@ namespace percy
                   for ( int j = 0; j < op_tt_size; ++j )
                   {
                     kitty::clear(tt_compute);
-
                     tt_compute = ~tt_compute;
-
                     if ( get_bit( operators[i], j ) )
                     {
                       for ( int k = 0; k < fanin; ++k)

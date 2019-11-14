@@ -178,73 +178,75 @@ namespace percy
                 return status;
             }
 
-      void create_variables( spec const& spec )
-      {
-        std::vector<int> fanins( spec.fanin );
-        nr_op_vars_per_step = ( ( 1u << spec.fanin ) - 1 );
-        nr_op_vars = spec.nr_steps * nr_op_vars_per_step;
-        nr_out_vars = spec.nr_nontriv * spec.nr_steps;
-        nr_sim_vars = spec.nr_steps * spec.get_tt_size();
-        nr_lex_vars = (spec.nr_steps - 1) * (nr_op_vars_per_step - 1);
-        nr_sel_vars = 0;
-        svar_map.clear();
-        nr_svar_map.resize(spec.nr_steps);
-
-        for ( int i = spec.get_nr_in() + spec.get_nr_compiled_functions(); i < spec.get_nr_in() + spec.get_nr_compiled_functions() + spec.nr_steps; i++ ) {
-          if ( spec.verbosity > 2 )
-          {
-            printf("[i] adding sel vars for step #%d\n",
-                   i + 1);
-          }
-          
-          // spec.nr_sel_vars += binomial_coeff(i, FI); 
-          // ( i * ( i - 1 ) ) / 2;
-          
-          auto nr_svars_for_i = 0u;
-          fanin_init( fanins, spec.fanin - 1 );
-          do
-          {
-            if ( spec.verbosity > 4 )
+            void create_variables( spec const& spec )
             {
-              print_fanin( fanins );
+              std::vector<int> fanins( spec.fanin );
+              nr_op_vars_per_step = ( ( 1u << spec.fanin ) - 1 );
+              nr_op_vars = spec.nr_steps * nr_op_vars_per_step;
+              nr_out_vars = spec.nr_nontriv * spec.nr_steps;
+              nr_sim_vars = spec.nr_steps * spec.get_tt_size();
+              nr_lex_vars = (spec.nr_steps - 1) * (nr_op_vars_per_step - 1);
+              nr_sel_vars = 0;
+              svar_map.clear();
+              nr_svar_map.resize(spec.nr_steps);
+
+              for ( int i = spec.get_nr_in() + spec.get_nr_compiled_functions(); i < spec.get_nr_in() + spec.get_nr_compiled_functions() + spec.nr_steps; i++ )
+              {
+                if ( spec.verbosity > 2 )
+                {
+                  printf("[i] adding sel vars for step #%d\n",
+                         i + 1);
+                }
+
+                // spec.nr_sel_vars += binomial_coeff(i, FI);
+                // ( i * ( i - 1 ) ) / 2;
+
+                auto nr_svars_for_i = 0u;
+                fanin_init( fanins, spec.fanin - 1 );
+                do
+                {
+                  if ( spec.verbosity > 4 )
+                  {
+                    print_fanin( fanins );
+                  }
+                  svar_map.push_back( fanins );
+                  ++nr_svars_for_i;
+                }
+                while ( fanin_inc( fanins, i-1 ) );
+
+                if ( spec.verbosity > 2 )
+                {
+                  printf( "[i] added %u sel vars\n", nr_svars_for_i );
+                }
+
+                nr_sel_vars += nr_svars_for_i;
+                nr_svar_map[ i - spec.get_nr_in() - spec.get_nr_compiled_functions() ] = nr_svars_for_i;
+                assert( nr_svars_for_i == binomial_coeff( i, spec.fanin ) );
+              }
+
+              sel_offset = 0;
+              ops_offset = nr_sel_vars;
+              out_offset = nr_sel_vars + nr_op_vars;
+              sim_offset = nr_sel_vars + nr_op_vars + nr_out_vars;
+              lex_offset = nr_sel_vars + nr_op_vars + nr_out_vars + nr_sim_vars;
+
+              total_nr_vars = nr_op_vars + nr_out_vars + nr_sim_vars +
+                nr_sel_vars + nr_lex_vars;
+
+              if (spec.verbosity > 1)
+              {
+                printf("Creating variables (SSV-%d)\n", spec.fanin);
+                printf("nr steps = %d\n", spec.nr_steps);
+                printf("nr_sel_vars=%d\n", nr_sel_vars);
+                printf("nr_op_vars = %d\n", nr_op_vars);
+                printf("nr_out_vars = %d\n", nr_out_vars);
+                printf("nr_sim_vars = %d\n", nr_sim_vars);
+                printf("nr_lex_vars = %d\n", nr_lex_vars);
+                printf("creating %d total variables\n", total_nr_vars);
+              }
+
+              solver->set_nr_vars(total_nr_vars);
             }
-            svar_map.push_back( fanins );
-            ++nr_svars_for_i;
-          }
-          while ( fanin_inc( fanins, i-1 ) );
-                    
-          if ( spec.verbosity > 2 )
-          {
-            printf( "[i] added %u sel vars\n", nr_svars_for_i );
-          }
-
-          nr_sel_vars += nr_svars_for_i;
-          nr_svar_map[ i - spec.get_nr_in() - spec.get_nr_compiled_functions() ] = nr_svars_for_i;
-          assert( nr_svars_for_i == binomial_coeff( i, spec.fanin ) );
-        }
-
-        sel_offset = 0;
-        ops_offset = nr_sel_vars;
-        out_offset = nr_sel_vars + nr_op_vars;
-        sim_offset = nr_sel_vars + nr_op_vars + nr_out_vars;
-        lex_offset = nr_sel_vars + nr_op_vars + nr_out_vars + nr_sim_vars;
-        
-        total_nr_vars = nr_op_vars + nr_out_vars + nr_sim_vars +
-          nr_sel_vars + nr_lex_vars;
-        
-        if (spec.verbosity > 1) {
-          printf("Creating variables (SSV-%d)\n", spec.fanin);
-          printf("nr steps = %d\n", spec.nr_steps);
-          printf("nr_sel_vars=%d\n", nr_sel_vars);
-          printf("nr_op_vars = %d\n", nr_op_vars);
-          printf("nr_out_vars = %d\n", nr_out_vars);
-          printf("nr_sim_vars = %d\n", nr_sim_vars);
-          printf("nr_lex_vars = %d\n", nr_lex_vars);
-          printf("creating %d total variables\n", total_nr_vars);
-        }
-        
-        solver->set_nr_vars(total_nr_vars);
-      }
 
             bool create_tt_clauses(const spec& spec, const int t)
             {
@@ -310,9 +312,9 @@ namespace percy
                             printf("creating oimp clause: ( ");
                             printf("!g_%d_%d \\/ %sx_%d_%d ) (status=%d)\n", 
                                     h + 1, 
-                                    spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1, 
+                                    spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1,
                                     (1 - outbit) ?  "!" : "",
-                                    spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1, 
+                                    spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1,
                                     t + 2,
                                     ret);
                         }
@@ -342,11 +344,11 @@ namespace percy
             }
 
             bool add_simulation_clause(
-                    const spec& spec, 
-                    const int t, 
-                    const int i, 
-                    const int svar, 
-                    const int output, 
+                    const spec& spec,
+                    const int t,
+                    const int i,
+                    const int svar,
+                    const int output,
                     const int opvar_idx,
                     const std::vector<int>& fanins,
                     const std::vector<int>& fanin_asgn)
@@ -357,7 +359,7 @@ namespace percy
               {
                 // printf("assignment: %s\n", fanin_asgn.to_string().c_str());
               }
-              
+
               for (int j = 0; j < spec.fanin; j++)
               {
                 auto const child = fanins[j];
@@ -396,12 +398,12 @@ namespace percy
 
                 auto status = solver->add_clause(
                         pabc::Vec_IntArray(vLits),
-                        pabc::Vec_IntArray(vLits) + ctr); 
+                        pabc::Vec_IntArray(vLits) + ctr);
 
                 if (spec.verbosity > 3) {
                     printf("creating sim. clause: (");
                     printf(" !s_%d_%d ", spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1, svar + 1);
-                    printf(" \\/ %sx_%d_%d ", output ? "!" : "", 
+                    printf(" \\/ %sx_%d_%d ", output ? "!" : "",
                             spec.get_nr_in() + spec.get_nr_compiled_functions() + i + 1, t + 2);
 
                     for (int j = 0; j < spec.fanin; j++) {
@@ -488,7 +490,7 @@ namespace percy
                     kitty::dynamic_truth_table tt(spec.fanin);
                     kitty::clear(tt);
                     do {
-                        if (!kitty::is_normal(tt)) {
+                        if (!is_normal(tt)) {
                             kitty::next_inplace(tt);
                             continue;
                         }
@@ -844,7 +846,7 @@ namespace percy
                             for (int j = 0; j < nr_svars_for_i; j++) {
                                 const auto sel_var = get_sel_var(svar_offset+j);
                                 const auto& fanins1 = svar_map[svar_offset+j];
-                                
+
                                 auto has_fanin_p = false;
                                 auto has_fanin_q = false;
                                 for (auto fanin : fanins1) {
