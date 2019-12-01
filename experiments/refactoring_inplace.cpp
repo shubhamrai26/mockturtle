@@ -32,6 +32,24 @@
 
 #include <experiments.hpp>
 
+template<typename Ntk>
+class cut_compute
+{
+public:
+  using node = typename Ntk::node;
+
+public:
+  explicit cut_compute()
+  {
+  }
+
+  std::vector<std::vector<uint32_t>> operator()( node const& n )
+  {
+    (void)n;
+    return {{}};
+  }
+}; /* cut_compute */
+
 int main()
 {
   using namespace experiments;
@@ -48,6 +66,7 @@ int main()
       continue;
 
     xag_npn_resynthesis<aig_network> resyn;
+    cut_compute<aig_network> cut_comp;
 
     refactoring_inplace_params ps;
     ps.progress = true;
@@ -55,7 +74,7 @@ int main()
     uint32_t size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
-    refactoring_inplace( aig, resyn, ps, &st );
+    refactoring_inplace( aig, resyn, cut_comp, ps, &st );
     aig = cleanup_dangling( aig );
 
     auto cec = abc_cec( aig, benchmark );

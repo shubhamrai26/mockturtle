@@ -72,34 +72,27 @@ struct refactoring_inplace_stats
   /*! \brief Total runtime. */
   stopwatch<>::duration time_total{0};
 
-  /*! \brief Accumulated runtime for computing MFFCs. */
-  stopwatch<>::duration time_mffc{0};
-
-  /*! \brief Accumulated runtime for rewriting. */
-  stopwatch<>::duration time_refactoring{0};
-
-  /*! \brief Accumulated runtime for simulating MFFCs. */
-  stopwatch<>::duration time_simulation{0};
+  /*! \brief Accumulated runtime for cut computation. */
+  stopwatch<>::duration time_cuts{0};
 
   void report() const
   {
-    std::cout << fmt::format( "[i] total time       = {:>5.2f} secs\n", to_seconds( time_total ) );
-    std::cout << fmt::format( "[i] MFFC time        = {:>5.2f} secs\n", to_seconds( time_mffc ) );
-    std::cout << fmt::format( "[i] refactoring time = {:>5.2f} secs\n", to_seconds( time_refactoring ) );
-    std::cout << fmt::format( "[i] simulation time  = {:>5.2f} secs\n", to_seconds( time_simulation ) );
+    std::cout << fmt::format( "[i] total time = ({:>5.2f} secs)\n", to_seconds( time_total ) );
+    std::cout << fmt::format( "[i]   cut time = ({:>5.2f} secs)\n", to_seconds( time_cuts ) );
   }
 };
 
 namespace detail
 {
 
-template<class Ntk, class RefactoringFn>
+template<class Ntk, class RefactoringFn, class CutComputeFn>
 class refactoring_inplace_impl
 {
 public:
-  explicit refactoring_inplace_impl( Ntk& ntk, RefactoringFn&& refactoring_fn, refactoring_inplace_params const& ps, refactoring_inplace_stats& st )
+  explicit refactoring_inplace_impl( Ntk& ntk, RefactoringFn&& refactoring_fn, CutComputeFn&& cut_compute_fn, refactoring_inplace_params const& ps, refactoring_inplace_stats& st )
     : ntk( ntk )
     , refactoring_fn( refactoring_fn )
+    , cut_compute_fn( cut_compute_fn )
     , ps( ps )
     , st( st )
   {
@@ -129,6 +122,11 @@ public:
         if ( ntk.fanout_size( n ) > ps.skip_fanout_limit_for_roots )
           return true; /* true */
 
+        /* compute a cut for the current node */
+        auto const cuts = call_with_stopwatch( st.time_cuts, [&]() {
+            return cut_compute_fn( n );
+          });
+
         return true; /* next node */
       });
   }
@@ -136,6 +134,7 @@ public:
 private:
   Ntk& ntk;
   RefactoringFn&& refactoring_fn;
+  CutComputeFn&& cut_compute_fn;
   refactoring_inplace_params const& ps;
   refactoring_inplace_stats& st;
   
@@ -165,8 +164,8 @@ private:
  * \param pst Refactoring statistics
  * \param cost_fn Node cost function (a functor with signature `uint32_t(Ntk const&, node<Ntk> const&)`)
  */
-template<class Ntk, class RefactoringFn>
-void refactoring_inplace( Ntk& ntk, RefactoringFn&& refactoring_fn, refactoring_inplace_params const& ps = {}, refactoring_inplace_stats* pst = nullptr )
+template<class Ntk, class RefactoringFn, class CutComputeFn>
+void refactoring_inplace( Ntk& ntk, RefactoringFn&& refactoring_fn, CutComputeFn&& cut_compute_fn, refactoring_inplace_params const& ps = {}, refactoring_inplace_stats* pst = nullptr )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_get_node_v<Ntk>, "Ntk does not implement the get_node method" );
@@ -181,7 +180,7 @@ void refactoring_inplace( Ntk& ntk, RefactoringFn&& refactoring_fn, refactoring_
   static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
 
   refactoring_inplace_stats st;
-  detail::refactoring_inplace_impl<Ntk, RefactoringFn> p( ntk, refactoring_fn, ps, st );
+  detail::refactoring_inplace_impl<Ntk, RefactoringFn, CutComputeFn> p( ntk, refactoring_fn, cut_compute_fn, ps, st );
   p.run();
   if ( ps.verbose )
   {
