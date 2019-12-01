@@ -98,10 +98,21 @@ struct refactoring_inplace_stats
   /*! \brief Accumulated runtime for cut evaluation. */
   stopwatch<>::duration time_eval{0};
 
+  /*! \brief Accumulated runtime for updating the network. */
+  stopwatch<>::duration time_substitute{0};
+
+  /*! \brief Number DAG-aware rewriting attempts. */
+  uint64_t candidates{0};
+
+  /*! \brief Total gain computed by DAG-aware rewriting. */
+  uint64_t estimated_gain{0};
+
   void report() const
   {
-    std::cout << fmt::format( "[i] total time = ({:>5.2f} secs)\n", to_seconds( time_total ) );
-    std::cout << fmt::format( "[i]   cut time = ({:>5.2f} secs)\n", to_seconds( time_cuts ) );
+    fmt::print( "[i] total time = ({:>5.2f} secs)\n", to_seconds( time_total ) );
+    fmt::print( "[i]   cut time = ({:>5.2f} secs)\n", to_seconds( time_cuts ) );
+    fmt::print( "[i]   evaluation time = ({:>5.2f} secs)\n", to_seconds( time_eval ) );
+    fmt::print( "[i]   substitute time = ({:>5.2f} secs)\n", to_seconds( time_substitute ) );
   }
 };
 
@@ -149,6 +160,8 @@ public:
         if ( ntk.fanout_size( n ) > ps.skip_fanout_limit_for_roots )
           return true; /* true */
 
+        pbar( i, size - i, st.candidates, st.estimated_gain );
+
         /* compute a cut for the current node */
         auto const cuts = call_with_stopwatch( st.time_cuts, [&]() {
             return cut_compute_fn( n );
@@ -171,6 +184,27 @@ public:
           /* if no replacement or self-replacement */
           if ( !g || n >= ntk.get_node( *g ) )
             continue; /* next cut for this node  */
+
+          /* DAG-aware rewriting */
+          int32_t value = recursive_deref( n );
+          auto [v, contains] = recursive_ref_contains( ntk.get_node( *g ), n );
+          recursive_deref( ntk.get_node( *g ) );
+
+          int32_t gain = contains ? -1 : value - v;
+          if ( gain > 0 || ( ps.allow_zero_gain && gain == 0 ) )
+          {
+            /* update progress bar */
+            st.candidates++;
+            st.estimated_gain += gain;
+
+            /* update network */
+            call_with_stopwatch( st.time_substitute, [&]() {
+                // std::cout << "[i] substitute " << ' ' << n <<  " with " << ntk.get_node( *g ) << std::endl;
+                ntk.substitute_node( n, *g );
+              });
+          }
+          recursive_ref( n );
+          return true; /* next node */
         }
 
         return true; /* next node */
@@ -180,7 +214,64 @@ public:
 private:
   std::optional<signal> evaluate( node const& root, std::vector<node> const &cut )
   {
+    (void)root;
+    (void)cut;
     return std::optional<signal>{};
+  }
+
+  uint32_t recursive_deref( node const& n )
+  {
+    /* terminate? */
+    if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
+      return 0;
+
+    /* recursively collect nodes */
+    uint32_t value{1u};
+    ntk.foreach_fanin( n, [&]( auto const& s ) {
+      if ( ntk.decr_value( ntk.get_node( s ) ) == 0 )
+      {
+        value += recursive_deref( ntk.get_node( s ) );
+      }
+    } );
+    return value;
+  }
+
+  uint32_t recursive_ref( node const& n )
+  {
+    /* terminate? */
+    if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
+      return 0;
+
+    /* recursively collect nodes */
+    uint32_t value{1u};
+    ntk.foreach_fanin( n, [&]( auto const& s ) {
+      if ( ntk.incr_value( ntk.get_node( s ) ) == 0 )
+      {
+        value += recursive_ref( ntk.get_node( s ) );
+      }
+    } );
+    return value;
+  }
+
+  std::pair<int32_t, bool> recursive_ref_contains( node const& n, node const& repl )
+  {
+    /* terminate? */
+    if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
+      return {0, false};
+
+    /* recursively collect nodes */
+    int32_t value{1u};
+    bool contains = ( n == repl );
+    ntk.foreach_fanin( n, [&]( auto const& s ) {
+      contains = contains || ( ntk.get_node( s ) == repl );
+      if ( ntk.incr_value( ntk.get_node( s ) ) == 0 )
+      {
+        const auto [v, c] = recursive_ref_contains( ntk.get_node( s ), repl );
+        value += v;
+        contains = contains || c;
+      }
+    } );
+    return {value, contains};
   }
 
 private:
@@ -189,9 +280,6 @@ private:
   CutComputeFn&& cut_compute_fn;
   refactoring_inplace_params const& ps;
   refactoring_inplace_stats& st;
-
-  uint32_t _candidates{0};
-  uint32_t _estimated_gain{0};
 };
 
 } /* namespace detail */
