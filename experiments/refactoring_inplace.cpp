@@ -43,7 +43,7 @@ public:
   {
   }
 
-  std::vector<std::vector<uint32_t>> operator()( node const& n )
+  std::vector<std::vector<node>> operator()( node const& n )
   {
     (void)n;
     return {{}};
