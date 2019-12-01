@@ -31,6 +31,8 @@
 */
 #pragma once
 
+#include "../utils/progress_bar.hpp"
+
 #include <kitty/dynamic_truth_table.hpp>
 #include <fmt/format.h>
 
@@ -46,6 +48,9 @@ struct refactoring_inplace_params
 {
   /*! \brief Maximum number of PIs in MFFCs. */
   uint32_t max_pis{6};
+
+  /*! \brief Maximum fanout of a node to be considered as root. */
+  uint32_t skip_fanout_limit_for_roots{1000};
 
   /*! \brief Allow zero-gain substitutions */
   bool allow_zero_gain{false};
@@ -102,7 +107,30 @@ public:
 
   void run()
   {
-    return;
+    stopwatch t( st.time_total );
+
+    progress_bar pbar{ntk.size(), "rewriting |{0}| node = {1:>4}   cand = {2:>4}   est. gain = {3:>5}", ps.progress};
+
+    /* for cost estimation we use reference counters initialized by the fanout size */
+    ntk.clear_values();
+    ntk.foreach_node( [&]( auto const& n ) {
+      ntk.set_value( n, ntk.fanout_size( n ) );
+    } );
+
+    auto const size = ntk.num_gates();
+    ntk.foreach_gate( [&]( auto const& n, auto i ){
+        if ( i >= size )
+          return false; /* terminate */
+
+        if ( ntk.is_dead( n ) )
+          return true; /* next */
+
+        /* skip nodes with many fanouts */
+        if ( ntk.fanout_size( n ) > ps.skip_fanout_limit_for_roots )
+          return true; /* true */
+
+        return true; /* next node */
+      });
   }
 
 private:
