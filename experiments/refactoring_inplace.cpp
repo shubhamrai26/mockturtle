@@ -55,7 +55,7 @@ int main()
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, float, bool> exp( "cut_rewriting", "benchmark", "size_before", "size_after", "runtime", "equivalent" );
+  experiment<std::string, uint32_t, uint32_t, uint32_t, float, bool> exp( "cut_rewriting", "benchmark", "size_before", "size_after", "diff", "runtime", "equivalent" );
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
@@ -77,13 +77,13 @@ int main()
     refactoring_inplace( aig, resyn, cut_comp, ps, &st );
     aig = cleanup_dangling( aig );
 
-    auto cec = abc_cec( aig, benchmark );
-
-    exp( benchmark, size_before, aig.num_gates(), to_seconds( st.time_total ), cec );
+    auto const cec = abc_cec( aig, benchmark );
+    exp( benchmark, size_before, aig.num_gates(), aig.num_gates() - size_before, to_seconds( st.time_total ), cec );
   }
 
   exp.save();
-  exp.compare( {}, {}, {"size_after"});
+  exp.table();
+  // exp.compare( {}, {}, {"size_after"});
 
   return 0;
 }
