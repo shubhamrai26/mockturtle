@@ -89,9 +89,6 @@ struct refactoring_inplace_params
 
   /*! \brief Consider multiple cuts per node. */
   uint32_t num_cuts_per_node{10u};
-
-  /*! \brief Conflict limit for exact synthesis. */
-  uint32_t conflict_limit = 10000;
 };
 
 /*! \brief Statistics for refactoring_inplace.
@@ -141,18 +138,18 @@ struct refactoring_inplace_stats
   
   void report() const
   {
-    std::cout << fmt::format( "[i] synthesis success/timeout = {}/{}\n", num_synthesis_successes, num_synthesis_timeouts );
-    std::cout << fmt::format( "[i] cache hits/misses = {}/{}\n", cache_hits, cache_misses );
-    std::cout << fmt::format( "[i] total time                                                  ({:>5.2f} secs)\n", to_seconds( time_total ) );
-    std::cout << fmt::format( "[i]   cut time                                                  ({:>5.2f} secs)\n", to_seconds( time_cuts ) );
-    std::cout << fmt::format( "[i]   mffc time                                                 ({:>5.2f} secs)\n", to_seconds( time_mffc ) );
-    std::cout << fmt::format( "[i]   divs time                                                 ({:>5.2f} secs)\n", to_seconds( time_divs ) );
-    std::cout << fmt::format( "[i]   simulation time                                           ({:>5.2f} secs)\n", to_seconds( time_simulation ) );
-    std::cout << fmt::format( "[i]   evaluation time                                           ({:>5.2f} secs)\n", to_seconds( time_eval ) );
-    std::cout << fmt::format( "[i]   substitute                                                ({:>5.2f} secs)\n", to_seconds( time_substitute ) );
-    std::cout << fmt::format( "[i] total divisors            = {:8d}\n",         ( num_total_divisors ) );
-    std::cout << fmt::format( "[i] total leaves              = {:8d}\n",         ( num_total_leaves ) );
-    std::cout << fmt::format( "[i] estimated gain            = {:8d} ({:>5.2f}%)\n",
+    fmt::print( "[i] synthesis success/timeout = {}/{}\n", num_synthesis_successes, num_synthesis_timeouts );
+    fmt::print( "[i] cache hits/misses = {}/{}\n", cache_hits, cache_misses );
+    fmt::print( "[i] total time                                                  ({:>5.2f} secs)\n", to_seconds( time_total ) );
+    fmt::print( "[i]   cut time                                                  ({:>5.2f} secs)\n", to_seconds( time_cuts ) );
+    fmt::print( "[i]   mffc time                                                 ({:>5.2f} secs)\n", to_seconds( time_mffc ) );
+    fmt::print( "[i]   divs time                                                 ({:>5.2f} secs)\n", to_seconds( time_divs ) );
+    fmt::print( "[i]   simulation time                                           ({:>5.2f} secs)\n", to_seconds( time_simulation ) );
+    fmt::print( "[i]   evaluation time                                           ({:>5.2f} secs)\n", to_seconds( time_eval ) );
+    fmt::print( "[i]   substitute                                                ({:>5.2f} secs)\n", to_seconds( time_substitute ) );
+    fmt::print( "[i] total divisors            = {:8d}\n",         ( num_total_divisors ) );
+    fmt::print( "[i] total leaves              = {:8d}\n",         ( num_total_leaves ) );
+    fmt::print( "[i] estimated gain            = {:8d} ({:>5.2f}%)\n",
                               estimated_gain, ( (100.0 * estimated_gain) / initial_size ) );
   }
 };

@@ -155,7 +155,7 @@ int main()
   
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    if ( benchmark == "hyp" || benchmark == "div" || benchmark == "mem_ctrl" || benchmark == "log2" || benchmark == "arbiter" || benchmark == "multiplier" )
+    if ( benchmark == "hyp" )
       continue;
     
     fmt::print( "[i] processing {}\n", benchmark );
@@ -190,5 +190,7 @@ int main()
   exp.table();
   // exp.compare( {}, {}, {"size_after"});
 
+  std::cout << "cache size = " << cache->size() << std::endl;
+  std::cout << "blacklist size = " << blacklist_cache->size() << std::endl;
   return 0;
 }
