@@ -56,7 +56,7 @@ struct exact_resynthesis_params
 
   using blacklist_cache_map_t = std::unordered_map<kitty::dynamic_truth_table, int32_t, kitty::hash<kitty::dynamic_truth_table>>;
   using blacklist_cache_t = std::shared_ptr<blacklist_cache_map_t>;
-  
+
   cache_t cache;
   blacklist_cache_t blacklist_cache;
 

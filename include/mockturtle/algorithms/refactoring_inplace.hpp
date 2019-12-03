@@ -40,8 +40,6 @@
 #include "../views/fanout_view2.hpp"
 #include "reconv_cut2.hpp"
 
-#include "../networks/aig.hpp"
-
 #include <percy/percy.hpp>
 
 #include <kitty/static_truth_table.hpp>
@@ -49,12 +47,6 @@
 
 namespace mockturtle
 {
-
-inline bool file_exists( std::string const& name )
-{
-  std::ifstream f(name.c_str());
-  return f.good();
-}
 
 /*! \brief Parameters for refactoring_inplace.
  *

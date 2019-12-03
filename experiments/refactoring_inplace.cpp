@@ -34,6 +34,117 @@
 
 #include <experiments.hpp>
 
+inline bool file_exists( std::string const& name )
+{
+  std::ifstream f(name.c_str());
+  return f.good();
+}
+
+
+namespace nlohmann
+{
+  template <>
+  struct adl_serializer<kitty::dynamic_truth_table>
+  {
+    static void to_json( json& j, kitty::dynamic_truth_table const& tt )
+    {
+      j = {
+        {"_bits", tt._bits},
+        {"_num_vars", tt._num_vars}
+      };
+    }
+
+    static void from_json( json const& j, kitty::dynamic_truth_table& tt )
+    {
+      if ( !j.is_null() )
+      {
+        tt._bits = j.at( "_bits" ).get<std::vector<uint64_t>>();
+        tt._num_vars = j.at( "_num_vars" ).get<int>();
+      }
+    }
+  };
+} // namespace nlohmann
+
+namespace nlohmann
+{
+  template <>
+  struct adl_serializer<percy::chain>
+  {
+    static void to_json( json& j, percy::chain const& c )
+    {
+      j = nlohmann::json{
+        {"nr_in", c.nr_in},
+        {"fanin", c.fanin},
+        {"op_tt_size", c.op_tt_size},
+        {"compiled_functions", c.compiled_functions},
+        {"steps", c.steps},
+        {"operators", c.operators},
+        {"outputs", c.outputs},
+      };
+    }
+
+    static void from_json( nlohmann::json const& j, percy::chain& c )
+    {
+      if ( !j.is_null() )
+      {
+        c.nr_in = j.at( "nr_in" ).get<int>();
+        c.fanin = j.at( "fanin" ).get<int>();
+        c.op_tt_size = j.at( "op_tt_size" ).get<int>();
+        c.compiled_functions = j.at( "compiled_functions" ).get<std::vector<kitty::dynamic_truth_table>>();
+        c.steps = j.at( "steps" ).get<std::vector<std::vector<int>>>();
+        c.operators = j.at( "operators" ).get<std::vector<kitty::dynamic_truth_table>>();
+        c.outputs = j.at( "outputs" ).get<std::vector<int>>();
+      }
+    }
+  };
+} // namespace nlohmann
+
+namespace nlohmann
+{
+  template <>
+  struct adl_serializer<mockturtle::exact_resynthesis_params>
+  {
+    static void to_json( json& j, mockturtle::exact_resynthesis_params const& ps )
+    {
+      j = nlohmann::json{    
+        {"cache", *ps.cache},
+        {"blacklist_cache", *ps.blacklist_cache},
+        {"add_alonce_clauses", ps.add_alonce_clauses},
+        {"add_colex_clauses", ps.add_colex_clauses},
+        {"add_lex_clauses", ps.add_lex_clauses},
+        {"add_lex_func_clauses", ps.add_lex_func_clauses},
+        {"add_nontriv_clauses", ps.add_nontriv_clauses},
+        {"add_noreapply_clauses", ps.add_noreapply_clauses},
+        {"add_symvar_clauses", ps.add_symvar_clauses},
+        {"conflict_limit", ps.conflict_limit},
+        {"solver_type", ps.solver_type},
+        {"encoder_type", ps.encoder_type},
+        {"synthesis_method", ps.synthesis_method}
+      };
+    }
+
+    static void from_json( nlohmann::json const& j, mockturtle::exact_resynthesis_params& ps )
+    {
+      if ( !j.is_null() )
+      {
+        ps.cache = std::make_shared<mockturtle::exact_resynthesis_params::cache_map_t>( j.at( "cache" ).get<mockturtle::exact_resynthesis_params::cache_map_t>() );
+        ps.blacklist_cache = std::make_shared<mockturtle::exact_resynthesis_params::blacklist_cache_map_t>( j.at( "blacklist_cache" ).get<mockturtle::exact_resynthesis_params::blacklist_cache_map_t>() );
+        ps.add_alonce_clauses = j.at( "add_alonce_clauses" ).get<bool>();
+        ps.add_colex_clauses = j.at( "add_colex_clauses" ).get<bool>();
+        ps.add_lex_clauses = j.at( "add_lex_clauses" ).get<bool>();
+        ps.add_lex_func_clauses = j.at( "add_lex_func_clauses" ).get<bool>();
+        ps.add_nontriv_clauses = j.at( "add_nontriv_clauses" ).get<bool>();
+        ps.add_noreapply_clauses = j.at( "add_noreapply_clauses" ).get<bool>();
+        ps.add_symvar_clauses = j.at( "add_symvar_clauses" ).get<bool>();
+        ps.conflict_limit = j.at( "conflict_limit" ).get<int>();
+        ps.solver_type = j.at( "solver_type" ).get<percy::SolverType>();
+        ps.encoder_type = j.at( "encoder_type" ).get<percy::EncoderType>();
+        ps.synthesis_method = j.at( "synthesis_method" ).get<percy::SynthMethod>();
+      }
+    }
+  };
+} // namespace nlohmann
+
 template<typename Ntk>
 class cut_compute
 {
@@ -100,7 +211,7 @@ private:
           continue;
         }
 
-        if ( cut_size != -1 && leaves.size() - 1 + ntk.fanin_size( *it ) > cut_size )
+        if ( cut_size > 0 && leaves.size() - 1 + ntk.fanin_size( *it ) > uint32_t( cut_size ) )
         {
           ++it;
           continue;
@@ -148,18 +259,30 @@ int main()
   ps.progress = true;
   ps.max_pis = 10;
 
-  auto cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
-  auto blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
+  /* exact resynthesis params */
+  exact_resynthesis_params exact_ps;
+  if ( file_exists( "exact_ps.json" ) )
+  {
+    std::ifstream ifs( "exact_ps.json" );
+    nlohmann::json js;
+    ifs >> js;
+    exact_ps = js.get<exact_resynthesis_params>();
+    ifs.close();
+  }
+  else
+  {
+    exact_ps.conflict_limit = 10000;
+    exact_ps.cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
+    exact_ps.blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
+  }
 
   /* resynthesis function */
-  exact_resynthesis_params exact_ps;
-  exact_ps.conflict_limit = 10000;
-  exact_ps.cache = cache;
-  exact_ps.blacklist_cache = blacklist_cache;
-  exact_aig_resynthesis<xag_network> resyn( true, exact_ps );
+  exact_aig_resynthesis<aig_network> resyn( false, exact_ps );
+  dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
 
-  dsd_resynthesis<xag_network, decltype( resyn )> dsd_resyn( resyn );
-
+  std::cout << "cache size = " << exact_ps.cache->size() << std::endl;
+  std::cout << "blacklist cache size = " << exact_ps.blacklist_cache->size() << std::endl;
+  
   for ( auto const& benchmark : epfl_benchmarks() )
   {
     if ( benchmark == "hyp" )
@@ -167,7 +290,7 @@ int main()
 
     fmt::print( "[i] processing {}\n", benchmark );
 
-    xag_network aig;
+    aig_network aig;
     if ( lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( aig ) ) != lorina::return_code::success )
     {
       fmt::print( "[i] could not read benchmark {}\n", benchmark );
@@ -175,7 +298,7 @@ int main()
     }
 
     /* cut computing function */
-    mffc_cut<xag_network> cut_comp( aig );
+    mffc_cut<aig_network> cut_comp( aig, ps.max_pis );
 
     uint32_t size_before = aig.num_gates();
 
@@ -197,7 +320,15 @@ int main()
   exp.table();
   // exp.compare( {}, {}, {"size_after"});
 
-  std::cout << "cache size = " << cache->size() << std::endl;
-  std::cout << "blacklist size = " << blacklist_cache->size() << std::endl;
+  std::cout << "cache size = " << exact_ps.cache->size() << std::endl;
+  std::cout << "blacklist size = " << exact_ps.blacklist_cache->size() << std::endl;
+
+  /* store exact resynthesis params */
+  nlohmann::json js = exact_ps;
+
+  std::ofstream ofs( "exact_ps.json" );
+  ofs << std::setw( 2 ) << js << std::endl;
+  ofs.close();
+  
   return 0;
 }

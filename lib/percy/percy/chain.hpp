@@ -21,7 +21,7 @@ namespace percy
 
     class chain
     {
-        private:
+        public:
             int nr_in;
             int fanin;
             int op_tt_size; // The truth table size of operands in the chain (depends on fanin)
