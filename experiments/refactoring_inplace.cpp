@@ -48,7 +48,6 @@ public:
   std::vector<std::vector<node>> operator()( node const& n )
   {
     (void)n;
-
     return {{}};
   }
 }; /* cut_compute */
@@ -65,8 +64,9 @@ private:
   using cut_iter = typename cut::iterator;
 
 public:
-  explicit mffc_cut( Ntk const& ntk )
+  explicit mffc_cut( Ntk const& ntk, int32_t cut_size = -1 )
     : ntk( ntk )
+    , cut_size( cut_size )
   {
   }
 
@@ -100,6 +100,12 @@ private:
           continue;
         }
 
+        if ( cut_size != -1 && leaves.size() - 1 + ntk.fanin_size( *it ) > cut_size )
+        {
+          ++it;
+          continue;
+        }
+
         /* found a possible node at which we should expand */
         break;
       }
@@ -127,6 +133,7 @@ private:
 
 private:
   Ntk const& ntk;
+  int32_t cut_size;
 }; /* mffc_cut */
 
 int main()
@@ -140,27 +147,27 @@ int main()
   refactoring_inplace_params ps;
   ps.progress = true;
   ps.max_pis = 10;
-  
+
   auto cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
   auto blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
-  
+
   /* resynthesis function */
   exact_resynthesis_params exact_ps;
   exact_ps.conflict_limit = 10000;
   exact_ps.cache = cache;
   exact_ps.blacklist_cache = blacklist_cache;
-  exact_aig_resynthesis<aig_network> resyn( false, exact_ps );
-  
-  dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
-  
+  exact_aig_resynthesis<xag_network> resyn( true, exact_ps );
+
+  dsd_resynthesis<xag_network, decltype( resyn )> dsd_resyn( resyn );
+
   for ( auto const& benchmark : epfl_benchmarks() )
   {
     if ( benchmark == "hyp" )
       continue;
-    
+
     fmt::print( "[i] processing {}\n", benchmark );
 
-    aig_network aig;
+    xag_network aig;
     if ( lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( aig ) ) != lorina::return_code::success )
     {
       fmt::print( "[i] could not read benchmark {}\n", benchmark );
@@ -168,14 +175,14 @@ int main()
     }
 
     /* cut computing function */
-    mffc_cut<aig_network> cut_comp( aig );
+    mffc_cut<xag_network> cut_comp( aig );
 
     uint32_t size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
     refactoring_inplace( aig, cut_comp, dsd_resyn, ps, &st );
     aig = cleanup_dangling( aig );
-    
+
     auto const cec = abc_cec( aig, benchmark );
     exp( benchmark,
          size_before,

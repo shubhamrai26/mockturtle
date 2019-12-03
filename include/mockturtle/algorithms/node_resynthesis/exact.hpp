@@ -190,9 +190,9 @@ public:
                                              _ps.synthesis_method );
            result != percy::success )
       {
-        if ( _ps.blacklist_cache )
+        if ( !with_dont_cares && _ps.blacklist_cache )
         {
-          ( *_ps.blacklist_cache )[function] = result == percy::timeout ? _ps.conflict_limit : 0;
+          ( *_ps.blacklist_cache )[function] = (result == percy::timeout) ? _ps.conflict_limit : 0;
         }
         return std::nullopt;
       }
@@ -326,6 +326,14 @@ public:
           return it->second;
         }
       }
+      else if ( !with_dont_cares && _ps.blacklist_cache )
+      {
+        const auto it = _ps.blacklist_cache->find( function );
+        if ( it != _ps.blacklist_cache->end() && _ps.conflict_limit >= it->second )
+        {
+          return std::nullopt;
+        }
+      }
 
       percy::chain c;
       if ( const auto result = percy::synthesize( spec, c, _ps.solver_type,
@@ -333,6 +341,10 @@ public:
                                                   _ps.synthesis_method );
            result != percy::success )
       {
+        if ( !with_dont_cares && _ps.blacklist_cache )
+        {
+          ( *_ps.blacklist_cache )[function] = (result == percy::timeout) ? _ps.conflict_limit : 0;
+        }
         return std::nullopt;
       }
       if ( !with_dont_cares && _ps.cache )

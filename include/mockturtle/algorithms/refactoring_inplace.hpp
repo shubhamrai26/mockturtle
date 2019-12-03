@@ -55,7 +55,7 @@ inline bool file_exists( std::string const& name )
   std::ifstream f(name.c_str());
   return f.good();
 }
-  
+
 /*! \brief Parameters for refactoring_inplace.
  *
  * The data structure `refactoring_inplace_params` holds configurable parameters with
@@ -84,7 +84,7 @@ struct refactoring_inplace_params
   /*! \brief Allow zero-gain rewriting. */
   bool allow_zero_gain{false};
 
-  /*! \brief Ignore the limit of cuts per node. */  
+  /*! \brief Ignore the limit of cuts per node. */
   bool ignore_num_cut_limit{true}; /* if true (all cuts per node are consider) */
 
   /*! \brief Consider multiple cuts per node. */
@@ -135,7 +135,7 @@ struct refactoring_inplace_stats
   uint64_t num_synthesis_successes{0};
   uint64_t cache_hits{0};
   uint64_t cache_misses{0};
-  
+
   void report() const
   {
     fmt::print( "[i] synthesis success/timeout = {}/{}\n", num_synthesis_successes, num_synthesis_timeouts );
@@ -386,7 +386,7 @@ public:
     ntk._events->on_modified.emplace_back( update_level_of_existing_node );
     ntk._events->on_delete.emplace_back( update_level_of_deleted_node );
   }
-  
+
   void run()
   {
     stopwatch t( st.time_total );
@@ -401,7 +401,7 @@ public:
     ntk.foreach_node( [&]( auto const& n ){
         ntk.set_value( n, ntk.fanout_size( n ) );
       });
-    
+
     auto const size = ntk.num_gates();
     ntk.foreach_gate( [&]( auto const& n, auto i ){
         if ( i >= size )
@@ -413,7 +413,7 @@ public:
         /* skip nodes with many fanouts */
         if ( ntk.fanout_size( n ) > ps.skip_fanout_limit_for_roots )
           return true; /* true */
-        
+
         pbar( i, size - i, candidates, st.estimated_gain, st.num_synthesis_successes, st.num_synthesis_successes + st.num_synthesis_timeouts );
 
         /* compute a cut for the current node */
@@ -429,7 +429,7 @@ public:
 
           if ( leaves.size() > ps.max_pis )
             continue;
-          
+
           if ( leaves.size() < 2u || leaves.size() > 15 )
             continue; /* next cut for this node */
 
@@ -437,7 +437,7 @@ public:
           auto const g = call_with_stopwatch( st.time_eval, [&]() {
               return evaluate( n, leaves, /* known functions = */ {} );
             });
-          
+
           /* if no replacement or self-replacement */
           if ( !g || n >= ntk.get_node( *g ) )
           {
@@ -512,14 +512,12 @@ private:
   {
     uint32_t const required = std::numeric_limits<uint32_t>::max();
 
-    last_gain = 0u;
-
     /* collect the MFFC */
-    int32_t num_mffc = call_with_stopwatch( st.time_mffc, [&]() {
+    int32_t num_mffc_nodes = call_with_stopwatch( st.time_mffc, [&]() {
         node_mffc_inside collector( ntk );
-        auto num_mffc = collector.run( root, leaves, mffc );
-        assert( num_mffc > 0 );
-        return num_mffc;
+        auto num_mffc_nodes = collector.run( root, leaves, mffc );
+        assert( num_mffc_nodes > 0 );
+        return num_mffc_nodes;
       });
 
     /* collect the divisor nodes in the cut */
@@ -531,15 +529,14 @@ private:
       return std::nullopt;
     }
 
-    uint32_t const size_before = num_mffc;
-    assert( size_before > 0u );
-    if ( size_before == 1u )
+    assert( num_mffc_nodes > 0u );
+    if ( num_mffc_nodes == 1u )
       return std::nullopt; /* next */
 
     /* update statistics */
     st.num_total_divisors += num_divs;
     st.num_total_leaves += leaves.size();
-    
+
     /* simulate the collected divisors */
     call_with_stopwatch( st.time_simulation, [&]() { simulate( leaves ); });
 
@@ -557,15 +554,11 @@ private:
       return ntk.get_constant( true );
     }
 
-    /* restrict to AIGs */
-    if constexpr ( !std::is_same<typename Ntk::base_type, mockturtle::aig_network>::value )
-      return std::nullopt;
-
     std::vector<signal> signal_leaves;
     for ( const auto& l : leaves )
       signal_leaves.emplace_back( ntk.make_signal( l ) );
-    
-    std::optional<signal> result = std::nullopt;    
+
+    std::optional<signal> result = std::nullopt;
     refactoring_fn( ntk, kitty::shrink_to( tt_root, signal_leaves.size() ), std::begin( signal_leaves ), std::end( signal_leaves ),
            [&result]( signal const& s ){
              result = std::make_optional( s );
@@ -574,7 +567,7 @@ private:
     if ( result && tt_phase )
       *result = !*result;
 
-    return result;    
+    return result;
   }
 
   void mark_cone_visited( node const& n )
@@ -593,7 +586,7 @@ private:
   {
     divs.clear();
 
-    /* add the leaves of the cuts to the divisors */    
+    /* add the leaves of the cuts to the divisors */
     ntk.incr_trav_id();
     for ( const auto& l : leaves )
     {
@@ -778,7 +771,7 @@ private:
   detail::simulator<Ntk, kitty::dynamic_truth_table> sim;
   CutCompFn&& cut_comp_fn;
   RefactoringFn&& refactoring_fn;
-  
+
   /*! \brief Refactoring parameters */
   refactoring_inplace_params const& ps;
 
@@ -787,7 +780,6 @@ private:
 
   /* temporary statistics for progress bar */
   uint32_t candidates{0};
-  uint32_t last_gain{0};
   std::vector<node> mffc;
   std::vector<node> divs;
   uint32_t num_divs{0};
