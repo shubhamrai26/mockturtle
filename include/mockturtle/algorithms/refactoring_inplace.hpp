@@ -360,69 +360,6 @@ public:
   using node = typename Ntk::node;
   using signal = typename Ntk::signal;
 
-  signal create_chain_in_network( Ntk& ntk, percy::chain /* const */& chain, std::vector<node> const& leaves, std::vector<node> const& divs )
-  {
-    /* print the chain */
-    std::vector<signal> signals;
-    for ( auto const& l : leaves )
-      signals.emplace_back( ntk.make_signal( l ) );
-    for ( auto const& d : divs )
-      signals.emplace_back( ntk.make_signal( d ) );
-    
-    for ( auto i = 0; i < chain.get_nr_steps(); ++i )
-    {
-      auto const& step = chain.get_step( i );
-      
-      std::vector<signal> cs( step.size() );
-      for ( uint32_t j = 0; j < step.size(); ++j )
-      {
-        int32_t fanin = step[j];
-        if ( fanin < chain.get_nr_inputs() )
-        {
-          assert( fanin < int32_t( signals.size() ) );
-          cs[j] = signals.at( fanin );
-        }
-        else if ( fanin < chain.get_nr_inputs() + chain.get_nr_compiled_functions() )
-        {
-          assert( fanin - chain.get_nr_inputs() + leaves.size() < signals.size() );
-          cs[j] = signals.at( fanin - chain.get_nr_inputs() + leaves.size() );
-        }
-        else
-        {
-          assert( fanin - chain.get_nr_inputs() - chain.get_nr_compiled_functions() + leaves.size() + divs.size() < signals.size() );
-          cs[j] = signals.at( fanin - chain.get_nr_inputs() - chain.get_nr_compiled_functions() + leaves.size() + divs.size() );
-        }
-      }
-
-      /* create the gate */
-      assert( step.size() == 2u );
-      switch ( chain.get_operator( i )._bits[0] )
-      {
-      default:
-        std::cerr << "[e] unsupported operation " << kitty::to_hex( chain.get_operator( i ) ) << "\n";
-        assert( false );
-        break;
-      case 0x8:
-        signals.emplace_back( ntk.create_and( cs.at( 0u ), cs.at( 1u ) ) );
-        break;
-      case 0x4:
-        signals.emplace_back( ntk.create_and( !cs.at( 0u ), cs.at( 1u ) ) );
-        break;
-      case 0x2:
-        signals.emplace_back( ntk.create_and( cs.at( 0u ), !cs.at( 1u ) ) );
-        break;
-      case 0xe:
-        signals.emplace_back( ntk.create_or( cs.at( 0u ), cs.at( 1u ) ) );
-        break;
-      case 0x6:
-        signals.emplace_back( ntk.create_xor( cs.at( 0u ), cs.at( 1u ) ) );
-        break;
-      }
-    }
-
-    return chain.is_output_inverted( 0u ) ? !signals.back() : signals.back();
-  }
-  
   explicit refactoring_inplace_impl( Ntk& ntk, CutCompFn&& cut_comp_fn, RefactoringFn&& refactoring_fn, refactoring_inplace_params const& ps, refactoring_inplace_stats& st )
     : ntk( ntk )
     , sim( ntk, ps.max_divisors, ps.max_pis )
@@ -600,9 +537,7 @@ private:
     uint32_t const size_before = num_mffc;
     assert( size_before > 0u );
     if ( size_before == 1u )
-    {
       return std::nullopt; /* next */
-    }
 
     /* update statistics */
     st.num_total_divisors += num_divs;
@@ -642,66 +577,7 @@ private:
     if ( result && tt_phase )
       *result = !*result;
 
-    return result;
-    
-#if 0
-    exact_resynthesis_params exact_ps;
-    exact_ps.conflict_limit = ps.conflict_limit;
-    exact_aig_resynthesis exact( false, exact_ps );
-    
-    
-    std::vector<signal> signal_leaves;
-    for ( const auto& l : leaves )
-      signal_leaves.emplace_back( ntk.make_signal( l ) );
-    
-    std::optional<signal> result = std::nullopt;
-
-    exact( ntk, kitty::shrink_to( tt_root, signal_leaves.size() ), std::begin( signal_leaves ), std::end( signal_leaves ),
-           [&result]( signal const& s ){
-             result = std::make_optional( s );
-           } );
-    
-    if ( result && tt_phase )
-      *result = !*result;
-
-    return result;
-#endif
-
-#if 0
-    /* exact synthesis */
-    percy::chain chain;
-    percy::spec spec;
-    spec.set_primitive( percy::AIG );
-      
-    spec[0] = tt_root;
-    spec.conflict_limit = ps.conflict_limit;
-
-    /* add known functions */
-    for ( const auto& d : divs )
-    {
-      spec.add_function( sim.get_tt( ntk.make_signal( d ) ) );
-    }
-  
-    auto const result = percy::synthesize( spec, chain );
-    if ( result == percy::timeout )
-    {
-      ++st.num_synthesis_timeouts;
-      return std::nullopt;
-    }
-    else if ( result == percy::failure )
-    {
-      std::cout << "[e] percy failed" << std::endl;
-      assert( false && "percy failed" );
-      return std::nullopt;
-    }
-    assert( result == percy::success ); 
-    assert( kitty::to_hex( chain.simulate()[0u] ) == kitty::to_hex( tt_root ) );
-    ++st.num_synthesis_successes;
-
-    chain.denormalize();
-    auto const s = create_chain_in_network( ntk, chain, leaves, divs );
-    return tt_phase ? !s : s;
-#endif
+    return result;    
   }
 
   void mark_cone_visited( node const& n )

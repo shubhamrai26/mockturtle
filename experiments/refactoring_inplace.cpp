@@ -142,11 +142,13 @@ int main()
   ps.max_pis = 10;
   
   auto cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
-    
+  auto blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
+  
   /* resynthesis function */
   exact_resynthesis_params exact_ps;
   exact_ps.conflict_limit = 10000;
   exact_ps.cache = cache;
+  exact_ps.blacklist_cache = blacklist_cache;
   exact_aig_resynthesis<aig_network> resyn( false, exact_ps );
   
   dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
@@ -171,9 +173,6 @@ int main()
     uint32_t size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
-    refactoring_inplace( aig, cut_comp, dsd_resyn, ps, &st );
-    aig = cleanup_dangling( aig );
-
     refactoring_inplace( aig, cut_comp, dsd_resyn, ps, &st );
     aig = cleanup_dangling( aig );
     
