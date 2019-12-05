@@ -28,6 +28,7 @@
 #include <mockturtle/algorithms/node_resynthesis/dsd.hpp>
 #include <mockturtle/algorithms/refactoring_inplace.hpp>
 #include <mockturtle/algorithms/cleanup.hpp>
+#include <mockturtle/views/fanout_view.hpp>
 #include <mockturtle/networks/aig.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
 #include <lorina/aiger.hpp>
@@ -165,36 +166,41 @@ public:
 
 /*! \brief Eagerly compute a fanout-free cut into fanin-direction. */
 template<typename Ntk>
-class mffc_cut
+class ffc_cut
 {
-public:
-  using node = typename Ntk::node;
-  using cut = std::vector<node>;
-
 private:
-  using cut_iter = typename cut::iterator;
+  /* internal types */
+  using node = typename Ntk::node;
+  struct cut
+  {
+    std::vector<node> leaves;
+  };
 
 public:
-  explicit mffc_cut( Ntk const& ntk, int32_t cut_size = -1 )
+  using subnetwork_type = cut;
+
+public:
+  explicit ffc_cut( Ntk const& ntk, int32_t cut_size = -1 )
     : ntk( ntk )
     , cut_size( cut_size )
   {
   }
 
-  std::vector<cut> operator()( node const& root )
+  std::vector<subnetwork_type> operator()( node const& root )
   {
-    cut leaves = { root };
-    expand_cut( leaves );
-    return { leaves };
+    std::vector<node> leaves = { root };
+    expand_fanin_cut( leaves );
+    std::sort( std::begin( leaves ), std::end( leaves ) );
+    return { subnetwork_type{leaves} };
   }
 
 private:
-  void expand_cut( cut& leaves )
+  void expand_fanin_cut( std::vector<node>& leaves )
   {
     while ( true )
     {
       /* step 1: select a node from the leaves to expand the cut */
-      cut_iter it = std::begin( leaves );
+      auto it = std::begin( leaves );
       while ( it != std::end( leaves ) )
       {
         /* skip PIs */
@@ -245,7 +251,174 @@ private:
 private:
   Ntk const& ntk;
   int32_t cut_size;
-}; /* mffc_cut */
+}; /* ffc_cut */
+
+/*! \brief Eagerly compute a fanout-free cut into fanin-direction and collect additional divisors that depend on the same support. */
+template<typename Ntk>
+class xcut
+{
+private:
+  /* internal types */
+  using node = typename Ntk::node;
+  struct ext_cut
+  {
+    std::vector<node> leaves;
+    std::vector<node> divs;
+  };
+
+public:
+  /* external types */
+  using subnetwork_type = ext_cut;
+
+public:
+  explicit xcut( Ntk const& ntk, int32_t cut_size = -1 )
+    : ntk( ntk )
+    , cut_size( cut_size )
+  {
+  }
+
+  std::vector<subnetwork_type> operator()( node const& root )
+  {
+    /* register two traversal ids */
+    ntk.incr_trav_id();
+    cover_id = ntk.trav_id();
+    
+    ntk.incr_trav_id();
+    divisor_id = ntk.trav_id();
+    
+    std::vector<node> leaves = { root };
+    expand_fanin_cut( leaves );
+    std::sort( std::begin( leaves ), std::end( leaves ) );
+
+    /* mark leaves visited */
+    for ( const auto& l : leaves )
+    {
+      ntk.set_visited( l, cover_id );
+    }
+
+    std::vector<node> divs;
+    collect_divisors( divs, leaves );
+
+    print( root, leaves, divs );
+    
+    return { subnetwork_type{leaves,divs} };
+  }
+
+  void print( node const& root, std::vector<node> const& leaves, std::vector<node> const& divs, std::ostream& os = std::cout ) const
+  {
+    os << "[xcut] r:" << root << " l:{ ";
+    for ( const auto& l : leaves )
+    {
+      os << l << ' ';
+    }
+    os << "} ";
+
+    os << "d:{ ";
+    for ( const auto& d : divs )
+    {
+      os << d << ' ';
+    }
+    os << "}";
+    os << std::endl;
+  }
+  
+private:  
+  void expand_fanin_cut( std::vector<node>& leaves )
+  {
+    while ( true )
+    {
+      /* step 1: select a node from the leaves to expand the cut */
+      auto it = std::begin( leaves );
+      while ( it != std::end( leaves ) )
+      {
+        /* skip PIs */
+        if ( ntk.is_pi( *it ) )
+        {
+          ++it;
+          continue;
+        }
+
+        /* skip node if not fanout-free */
+        if ( ntk.fanout_size( *it ) > 1 )
+        {
+          ++it;
+          continue;
+        }
+
+        if ( cut_size > 0 && leaves.size() - 1 + ntk.fanin_size( *it ) > uint32_t( cut_size ) )
+        {
+          ++it;
+          continue;
+        }
+
+        /* found a possible node at which we should expand */
+        break;
+      }
+
+      /* if we cannot find a leave to expand, we are done with this cut */
+      if ( it == std::end( leaves ) )
+        return;
+
+      /* step 2: expand the cut, i.e., remove the node from the cut and add its fanin */
+      auto const node = *it;
+      leaves.erase( it );
+      ntk.set_visited( *it, cover_id ); /* mark node as part of the current cone */
+
+      ntk.foreach_fanin( node, [&]( auto const &f ){
+          auto const n = ntk.get_node( f );
+
+          /* unique push back */
+          if ( std::find( std::begin( leaves ), std::end( leaves ), n ) == std::end( leaves ) )
+            leaves.push_back( n );
+        });
+
+      /* sort the leaves */
+      std::sort( std::begin( leaves ), std::end( leaves ) );
+    }
+  }
+
+  void collect_divisors( std::vector<node>& divs, std::vector<node> const& leaves )
+  {
+    /* traverse in fanout-direction from leaves and merge nodes with fanin in the current cover */
+    for ( const auto r : leaves )
+    {
+      ntk.foreach_fanout( r, [&]( const auto& d ){
+          if ( ntk.visited( d ) == cover_id || ntk.visited( d ) == divisor_id )
+            return; /* next */
+
+          /* check if all fanins are part of the cone */          
+          bool all_fanins_in_cover = true;
+          ntk.foreach_fanin( d, [&]( const auto& f ){
+              auto const n = ntk.get_node( f );
+              if ( ntk.visited( n ) != cover_id )
+              {
+                all_fanins_in_cover = false;
+                return;
+              }
+            });
+          if ( all_fanins_in_cover )
+          {
+            divs.push_back( d );
+            ntk.set_visited( d, cover_id );
+          }
+          else
+          {
+            ntk.set_visited( d, divisor_id );
+          }
+        });
+    }
+
+    std::sort( std::begin( divs ), std::end( divs ) );
+  }
+  
+private:
+  Ntk const& ntk;
+  int32_t cut_size;
+
+  uint32_t cover_id{0};
+  uint32_t divisor_id{0};
+}; /* xcut */
+
 
 int main()
 {
@@ -257,12 +430,13 @@ int main()
   /* refactoring parameters */
   refactoring_inplace_params ps;
   ps.progress = true;
-  ps.max_pis = 10;
+  ps.max_pis = 6;
 
   /* exact resynthesis params */
   exact_resynthesis_params exact_ps;
   if ( file_exists( "exact_ps.json" ) )
   {
+    // if config file exists, read configuration from file */
     std::ifstream ifs( "exact_ps.json" );
     nlohmann::json js;
     ifs >> js;
@@ -271,6 +445,7 @@ int main()
   }
   else
   {
+    /* if config file does not exist, use the default configuration */
     exact_ps.conflict_limit = 10000;
     exact_ps.cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
     exact_ps.blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
@@ -278,16 +453,15 @@ int main()
 
   /* resynthesis function */
   exact_aig_resynthesis<aig_network> resyn( false, exact_ps );
-  dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
+  // dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
 
-  std::cout << "cache size = " << exact_ps.cache->size() << std::endl;
-  std::cout << "blacklist cache size = " << exact_ps.blacklist_cache->size() << std::endl;
+  /* print parameters of exact resynthesis */
+  std::cout << "[i] conflict limit = " << exact_ps.conflict_limit << std::endl;
+  std::cout << "[i] cache size = " << exact_ps.cache->size() << std::endl;
+  std::cout << "[i] blacklist cache size = " << exact_ps.blacklist_cache->size() << std::endl;
   
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    if ( benchmark == "hyp" )
-      continue;
-
     fmt::print( "[i] processing {}\n", benchmark );
 
     aig_network aig;
@@ -297,38 +471,54 @@ int main()
       continue;
     }
 
-    /* cut computing function */
-    mffc_cut<aig_network> cut_comp( aig, ps.max_pis );
+    using aig_view_t = fanout_view2<depth_view<aig_network>>;
+    depth_view<aig_network> depth_aig{aig};
+    aig_view_t aig_view{depth_aig};
 
-    uint32_t size_before = aig.num_gates();
+    /* cut computing function */
+    xcut<aig_view_t> cut_comp( aig_view, ps.max_pis );
+
+    uint32_t const size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
-    refactoring_inplace( aig, cut_comp, dsd_resyn, ps, &st );
-    aig = cleanup_dangling( aig );
+    refactoring_inplace( aig_view, cut_comp, resyn, ps, &st );
+    aig = cleanup_dangling( aig ); // invalidates aig_view
 
-    auto const cec = abc_cec( aig, benchmark );
+    uint32_t const size_after = aig.num_gates();
+    
+    auto const cec = abc_cec( aig_view, benchmark );
     exp( benchmark,
          size_before,
          aig.num_gates(),
-         size_before -  aig.num_gates(),
-         100.0*(size_before -  aig.num_gates()) / size_before,
+         size_before - size_after,
+         100.0*(size_before - size_after) / size_before,
          to_seconds( st.time_total ),
          cec );
+
+    st.report();
+
+    /* serialize caches after each processed benchmark */
+    nlohmann::json js = exact_ps;
+
+    std::ofstream ofs( "exact_ps.json" );
+    ofs << std::setw( 2 ) << js << std::endl;
+    ofs.close();
   }
 
   exp.save();
   exp.table();
   // exp.compare( {}, {}, {"size_after"});
 
-  std::cout << "cache size = " << exact_ps.cache->size() << std::endl;
-  std::cout << "blacklist size = " << exact_ps.blacklist_cache->size() << std::endl;
+  std::cout << "[i] conflict limit = " << exact_ps.conflict_limit << std::endl;  
+  std::cout << "[i] cache size = " << exact_ps.cache->size() << std::endl;
+  std::cout << "[i] blacklist cache size = " << exact_ps.blacklist_cache->size() << std::endl;
 
   /* store exact resynthesis params */
-  nlohmann::json js = exact_ps;
+  // nlohmann::json js = exact_ps;
 
-  std::ofstream ofs( "exact_ps.json" );
-  ofs << std::setw( 2 ) << js << std::endl;
-  ofs.close();
+  // std::ofstream ofs( "exact_ps.json" );
+  // ofs << std::setw( 2 ) << js << std::endl;
+  // ofs.close();
   
   return 0;
 }

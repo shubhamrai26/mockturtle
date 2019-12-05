@@ -405,25 +405,25 @@ public:
         pbar( i, size - i, candidates, st.estimated_gain, st.num_synthesis_successes, st.num_synthesis_successes + st.num_synthesis_timeouts );
 
         /* compute a cut for the current node */
-        auto const cuts = call_with_stopwatch( st.time_cuts, [&]() {
+        auto const subnetworks = call_with_stopwatch( st.time_cuts, [&]() {
             return cut_comp_fn( n );
           });
 
         auto counter = 0u;
-        for ( auto const& leaves : cuts )
+        for ( auto const& subntk : subnetworks )
         {
           if ( !ps.ignore_num_cut_limit && counter++ > ps.num_cuts_per_node )
             return true; /* next node */
 
-          if ( leaves.size() > ps.max_pis )
+          if ( subntk.leaves.size() > ps.max_pis )
             continue;
 
-          if ( leaves.size() < 2u || leaves.size() > 15 )
+          if ( subntk.leaves.size() < 2u || subntk.leaves.size() > 15 )
             continue; /* next cut for this node */
 
           /* evaluate this cut */
           auto const g = call_with_stopwatch( st.time_eval, [&]() {
-              return evaluate( n, leaves, /* known functions = */ {} );
+              return evaluate( n, subntk );
             });
 
           /* if no replacement or self-replacement */
@@ -496,21 +496,22 @@ private:
     sim.normalize( divs );
   }
 
-  std::optional<signal> evaluate( node const& root, std::vector<node> const &leaves, std::vector<node>const& divs )
+  template<class SubNtk>
+  std::optional<signal> evaluate( node const& root, SubNtk const& subntk )
   {
     uint32_t const required = std::numeric_limits<uint32_t>::max();
 
     /* collect the MFFC */
     int32_t num_mffc_nodes = call_with_stopwatch( st.time_mffc, [&]() {
         node_mffc_inside collector( ntk );
-        auto num_mffc_nodes = collector.run( root, leaves, mffc );
+        auto num_mffc_nodes = collector.run( root, subntk.leaves, mffc );
         assert( num_mffc_nodes > 0 );
         return num_mffc_nodes;
       });
 
     /* collect the divisor nodes in the cut */
     bool div_comp_success = call_with_stopwatch( st.time_divs, [&]() {
-        return collect_divisors( root, leaves, required );
+        return collect_divisors( root, subntk.leaves, required );
       });
     if ( !div_comp_success )
     {
@@ -523,10 +524,10 @@ private:
 
     /* update statistics */
     st.num_total_divisors += num_divs;
-    st.num_total_leaves += leaves.size();
+    st.num_total_leaves += subntk.leaves.size();
 
     /* simulate the collected divisors */
-    call_with_stopwatch( st.time_simulation, [&]() { simulate( leaves ); });
+    call_with_stopwatch( st.time_simulation, [&]() { simulate( subntk.leaves ); });
 
     /* get truth table of root */
     auto const tt_root = sim.get_tt( ntk.make_signal( root ) );
@@ -543,9 +544,11 @@ private:
     }
 
     std::vector<signal> signal_leaves;
-    for ( const auto& l : leaves )
+    for ( const auto& l : subntk.leaves )
       signal_leaves.emplace_back( ntk.make_signal( l ) );
 
+    /* TODO: set known functions */
+    
     std::optional<signal> result = std::nullopt;
     refactoring_fn( ntk, kitty::shrink_to( tt_root, signal_leaves.size() ), std::begin( signal_leaves ), std::end( signal_leaves ),
            [&result]( signal const& s ){
@@ -670,7 +673,7 @@ private:
   }
 
 private:
-    uint32_t recursive_deref( node const& n )
+  uint32_t recursive_deref( node const& n )
   {
     /* terminate? */
     if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
@@ -821,13 +824,13 @@ void refactoring_inplace( Ntk& ntk, CutCompFn&& cut_comp_fn, RefactoringFn&& ref
   static_assert( has_value_v<Ntk>, "Ntk does not implement the has_value method" );
   static_assert( has_visited_v<Ntk>, "Ntk does not implement the has_visited method" );
 
-  using ntk_view_t = fanout_view2<depth_view<Ntk>>;
-  depth_view<Ntk> depth_view{ntk};
-  ntk_view_t ntk_view{depth_view};
+  // using ntk_view_t = fanout_view2<depth_view<Ntk>>;
+  // depth_view<Ntk> depth_view{ntk};
+  // ntk_view_t ntk_view{depth_view};
 
   refactoring_inplace_stats st;
   {
-    detail::refactoring_inplace_impl<ntk_view_t, CutCompFn, RefactoringFn> p( ntk_view, cut_comp_fn, refactoring_fn, ps, st );
+    detail::refactoring_inplace_impl<Ntk, CutCompFn, RefactoringFn> p( ntk, cut_comp_fn, refactoring_fn, ps, st );
     p.run();
     if ( ps.verbose )
     {
