@@ -38,7 +38,6 @@
 #include "../utils/stopwatch.hpp"
 #include "../views/depth_view.hpp"
 #include "../views/fanout_view2.hpp"
-#include "reconv_cut2.hpp"
 
 #include <percy/percy.hpp>
 
@@ -382,9 +381,6 @@ public:
   void run()
   {
     stopwatch t( st.time_total );
-
-    /* start the managers */
-    cut_manager<Ntk> mgr( ps.max_pis );
 
     progress_bar pbar{ntk.size(), "rewriting |{0}| node = {1:>4}   cand = {2:>4}   est. gain = {3:>5}", ps.progress};
 
