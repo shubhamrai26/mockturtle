@@ -189,6 +189,11 @@ public:
     }
   }
 
+  uint64_t size() const
+  {
+    return data->size();
+  }
+
 private:
   Ntk const& ntk;
   std::shared_ptr<std::vector<T>> data;
