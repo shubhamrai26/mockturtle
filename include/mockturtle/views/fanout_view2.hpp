@@ -72,7 +72,8 @@ template<typename Ntk>
 class fanout_view2<Ntk, true> : public Ntk
 {
 public:
-  fanout_view2( Ntk const& ntk, fanout_view2_params const& ps = {} ) : Ntk( ntk )
+  fanout_view2( Ntk const& ntk, fanout_view2_params const& ps = {} )
+    : Ntk( ntk )
   {
     (void)ps;
   }
@@ -86,7 +87,10 @@ public:
   using node    = typename Ntk::node;
   using signal  = typename Ntk::signal;
 
-  fanout_view2( Ntk const& ntk, fanout_view2_params const& ps = {} ) : Ntk( ntk ), _fanout( ntk ), _ps( ps )
+  fanout_view2( Ntk const& ntk, fanout_view2_params const& ps = {} )
+    : Ntk( ntk )
+    , _fanout( ntk )
+    , _ps( ps )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
@@ -131,7 +135,7 @@ public:
   template<typename Fn>
   void foreach_fanout( node const& n, Fn&& fn ) const
   {
-    assert( n < this->size() );
+    assert( n < _fanout.size() );
     detail::foreach_element( _fanout[n].begin(), _fanout[n].end(), fn );
   }
 
@@ -142,7 +146,7 @@ public:
 
   std::vector<node> fanout( node const& n ) const /* deprecated */
   {
-    return _fanout[ n ];
+    return _fanout[n];
   }
 
   void substitute_node( node const& old_node, signal const& new_signal )
