@@ -277,10 +277,23 @@ template<class Ntk = aig_network>
 class exact_aig_resynthesis
 {
 public:
+  using signal = typename Ntk::signal;
+
+public:
   explicit exact_aig_resynthesis( bool _allow_xor = false, exact_resynthesis_params const& ps = {} )
       : _allow_xor( _allow_xor ),
         _ps( ps )
   {
+  }
+
+  void clear_functions()
+  {
+    existing_functions.clear();
+  }
+
+  void add_function( signal const& s, kitty::dynamic_truth_table const& tt )
+  {
+    existing_functions.emplace_back( s, tt );
   }
 
   template<typename LeavesIterator, typename Fn>
@@ -310,11 +323,21 @@ public:
     spec.add_symvar_clauses = _ps.add_symvar_clauses;
     spec.conflict_limit = _ps.conflict_limit;
     spec[0] = function;
+
+    // std::cout << "function to synthesize: " << kitty::to_hex( function ) << std::endl;
+
     bool with_dont_cares{false};
     if ( !kitty::is_const0( dont_cares ) )
     {
       spec.set_dont_care( 0, dont_cares );
       with_dont_cares = true;
+    }
+
+    /* add existing functions */
+    for ( const auto& f : existing_functions )
+    {
+      // std::cout << "add existing function: " << ntk.get_node( f.first ) << ' ' << kitty::to_hex( f.second ) << std::endl;
+      spec.add_function( f.second );
     }
 
     auto c = [&]() -> std::optional<percy::chain> {
@@ -335,6 +358,8 @@ public:
         }
       }
 
+      // std::cout << "[i] call synthesis with " << existing_functions.size() << " additional functions" << std::endl;
+
       percy::chain c;
       if ( const auto result = percy::synthesize( spec, c, _ps.solver_type,
                                                   _ps.encoder_type,
@@ -347,6 +372,9 @@ public:
         }
         return std::nullopt;
       }
+
+      assert( kitty::to_hex( c.simulate()[0u] ) == kitty::to_hex( function ) );
+
       if ( !with_dont_cares && _ps.cache )
       {
         ( *_ps.cache )[function] = c;
@@ -359,12 +387,26 @@ public:
       return;
     }
 
-    std::vector<signal<Ntk>> signals( begin, end );
+    std::vector<signal> signals( begin, end );
+    for ( const auto& f : existing_functions )
+    {
+      signals.emplace_back( f.first );
+    }
+
+    // for ( const auto& s : signals )
+    // {
+    //   std::cout << ( ntk.is_complemented( s ) ? "!" : "" ) << ntk.get_node( s ) << std::endl;
+    // }
 
     for ( auto i = 0; i < c->get_nr_steps(); ++i )
     {
-      auto c1 = signals[c->get_step( i )[0]];
-      auto c2 = signals[c->get_step( i )[1]];
+      auto const c1 = signals[c->get_step( i )[0]];
+      auto const c2 = signals[c->get_step( i )[1]];
+
+      // std::cout << "step i = " << i << ' '
+      //           << ( ntk.is_complemented( c1 ) ? "!" : "" ) << ntk.get_node( c1 ) << ' '
+      //           << ( ntk.is_complemented( c2 ) ? "!" : "" ) << ntk.get_node( c2 ) << std::endl;
+
       switch ( c->get_operator( i )._bits[0] )
       {
       default:
@@ -395,6 +437,8 @@ public:
 private:
   bool _allow_xor = false;
   exact_resynthesis_params _ps;
+
+  std::vector<std::pair<signal, kitty::dynamic_truth_table>> existing_functions;
 };
 
 } /* namespace mockturtle */

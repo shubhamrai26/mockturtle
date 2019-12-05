@@ -419,7 +419,9 @@ public:
             continue;
 
           if ( subntk.leaves.size() < 2u || subntk.leaves.size() > 15 )
+          {
             continue; /* next cut for this node */
+          }
 
           /* evaluate this cut */
           auto const g = call_with_stopwatch( st.time_eval, [&]() {
@@ -547,8 +549,45 @@ private:
     for ( const auto& l : subntk.leaves )
       signal_leaves.emplace_back( ntk.make_signal( l ) );
 
-    /* TODO: set known functions */
-    
+    /* filter divisors by their functions */
+    std::vector<std::pair<signal, kitty::dynamic_truth_table>> filtered_divs;
+    for ( const auto& d : subntk.divs )
+    {
+      /* avoid adding divisors with trivial or pure variable functions */
+      auto const tt = kitty::shrink_to( sim.get_tt( ntk.make_signal( d ) ), signal_leaves.size() );
+      if ( kitty::is_const0( tt ) || kitty::is_const0( ~tt ) )
+        continue;
+      bool next = false;
+      for ( auto i = 0u; i < signal_leaves.size(); ++i )
+      {
+        kitty::dynamic_truth_table nvar( signal_leaves.size() );
+        kitty::create_nth_var( nvar, i );
+        if ( tt == nvar || ~tt == nvar )
+        {
+          next = true;
+          break;
+        }
+      }
+      if ( next )
+        continue;
+
+      /* ensure that all functions are pairwise different (and pairwise different to their complements) */
+      if ( std::find_if( std::begin( filtered_divs ), std::end( filtered_divs ),
+                      [&tt]( const auto& p ){ return p.second == tt || p.second == ~tt; } ) == std::end( filtered_divs ) )
+      {
+        filtered_divs.emplace_back( ntk.make_signal( d ), tt );
+      }
+
+      /* TODO: in case of equal functions, we should chose the best one */
+    }
+
+    /* add divisor functions to synthesis problem */
+    refactoring_fn.clear_functions();
+    for ( const auto& d : filtered_divs )
+    {
+      refactoring_fn.add_function( sim.get_phase( ntk.get_node( d.first ) ) ? !d.first : d.first, d.second );
+    }
+
     std::optional<signal> result = std::nullopt;
     refactoring_fn( ntk, kitty::shrink_to( tt_root, signal_leaves.size() ), std::begin( signal_leaves ), std::end( signal_leaves ),
            [&result]( signal const& s ){

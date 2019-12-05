@@ -80,7 +80,7 @@ public:
     const auto on_prime = [&]( kitty::dynamic_truth_table const& remainder, std::vector<signal<Ntk>> const& leaves ) {
       success = false;
       signal<Ntk> f = ntk.get_constant( false );
-      if ( leaves.size() > 6 )
+      if ( leaves.size() > 7 )
         return f;
 
       const auto on_signal = [&]( signal<Ntk> const& _f ) {
