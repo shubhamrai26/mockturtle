@@ -517,7 +517,7 @@ private:
       return std::nullopt;
     }
 
-    assert( num_mffc_nodes > 0u );
+    assert( num_mffc_nodes > 0 );
     if ( num_mffc_nodes == 1u )
       return std::nullopt; /* next */
 
