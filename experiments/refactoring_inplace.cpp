@@ -23,6 +23,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <mockturtle/algorithms/extract_subnetwork.hpp>
 #include <mockturtle/algorithms/node_resynthesis/exact.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xag_npn.hpp>
 #include <mockturtle/algorithms/node_resynthesis/dsd.hpp>
@@ -40,7 +41,6 @@ inline bool file_exists( std::string const& name )
   std::ifstream f(name.c_str());
   return f.good();
 }
-
 
 namespace nlohmann
 {
@@ -146,325 +146,6 @@ namespace nlohmann
   };
 } // namespace nlohmann
 
-template<typename Ntk>
-class cut_compute
-{
-public:
-  using node = typename Ntk::node;
-
-public:
-  explicit cut_compute()
-  {
-  }
-
-  std::vector<std::vector<node>> operator()( node const& n )
-  {
-    (void)n;
-    return {{}};
-  }
-}; /* cut_compute */
-
-/*! \brief Eagerly compute a fanout-free cut into fanin-direction. */
-template<typename Ntk>
-class ffc_cut
-{
-private:
-  /* internal types */
-  using node = typename Ntk::node;
-  struct cut
-  {
-    std::vector<node> leaves{};
-    std::vector<node> divs{};
-  };
-
-public:
-  using subnetwork_type = cut;
-
-public:
-  explicit ffc_cut( Ntk const& ntk, int32_t cut_size = -1 )
-    : ntk( ntk )
-    , cut_size( cut_size )
-  {
-  }
-
-  std::vector<subnetwork_type> operator()( node const& root )
-  {
-    std::vector<node> leaves = { root };
-    expand_fanin_cut( leaves );
-    std::sort( std::begin( leaves ), std::end( leaves ) );
-    return { subnetwork_type{leaves} };
-  }
-
-private:
-  void expand_fanin_cut( std::vector<node>& leaves )
-  {
-    while ( true )
-    {
-      /* step 1: select a node from the leaves to expand the cut */
-      auto it = std::begin( leaves );
-      while ( it != std::end( leaves ) )
-      {
-        /* skip PIs */
-        if ( ntk.is_pi( *it ) )
-        {
-          ++it;
-          continue;
-        }
-
-        /* skip node if not fanout-free */
-        if ( ntk.fanout_size( *it ) > 1 )
-        {
-          ++it;
-          continue;
-        }
-
-        if ( cut_size > 0 && leaves.size() - 1 + ntk.fanin_size( *it ) > uint32_t( cut_size ) )
-        {
-          ++it;
-          continue;
-        }
-
-        /* found a possible node at which we should expand */
-        break;
-      }
-
-      /* if we cannot find a leave to expand, we are done with this cut */
-      if ( it == std::end( leaves ) )
-        return;
-
-      /* step 2: expand the cut, i.e., remove the node from the cut and add its fanin */
-      auto const node = *it;
-      leaves.erase( it );
-
-      ntk.foreach_fanin( node, [&]( auto const &f ){
-          auto const n = ntk.get_node( f );
-
-          /* unique push back */
-          if ( std::find( std::begin( leaves ), std::end( leaves ), n ) == std::end( leaves ) )
-            leaves.push_back( n );
-        });
-
-      /* sort the leaves */
-      std::sort( std::begin( leaves ), std::end( leaves ) );
-    }
-  }
-
-private:
-  Ntk const& ntk;
-  int32_t cut_size;
-}; /* ffc_cut */
-
-/*! \brief Eagerly compute a fanout-free cut into fanin-direction and collect additional divisors that depend on the same support. */
-template<typename Ntk>
-class xcut
-{
-private:
-  /* internal types */
-  using node = typename Ntk::node;
-  struct ext_cut
-  {
-    std::vector<node> leaves;
-    std::vector<node> divs;
-  };
-
-public:
-  /* external types */
-  using subnetwork_type = ext_cut;
-
-public:
-  explicit xcut( Ntk const& ntk, int32_t cut_size = -1 )
-    : ntk( ntk )
-    , cut_size( cut_size )
-  {
-  }
-
-  std::vector<subnetwork_type> operator()( node const& root )
-  {
-    /* register two traversal ids */
-    ntk.incr_trav_id();
-    cover_id = ntk.trav_id();
-
-    ntk.incr_trav_id();
-    divisor_id = ntk.trav_id();
-
-    std::vector<node> leaves = { root };
-    expand_fanin_cut( leaves );
-    std::sort( std::begin( leaves ), std::end( leaves ) );
-
-    /* skip all the computations of the divisors if the leave size is too small */
-    if ( leaves.size() <= 2u )
-    {
-      return { subnetwork_type{leaves,{}} };
-    }
-
-    /* mark leaves visited */
-    for ( const auto& l : leaves )
-    {
-      ntk.set_visited( l, cover_id );
-    }
-
-    /* TODO: could be replaced with a cheaper depth check */
-#if 0
-    /* mark tfo of root as visited */
-    std::vector<node> roots = { root };
-    while ( true )
-    {
-      auto it = std::begin( roots );
-
-      /* if we cannot find a root to expand, we are done  */
-      if ( it == std::end( roots ) )
-        break;
-
-      /* expand roots, i.e., remove the node from roots and add its fanout */
-      auto const node = *it;
-      roots.erase( it );
-      ntk.set_visited( node, divisor_id ); /* mark node as visited */
-
-      ntk.foreach_fanout( node, [&]( auto const &n ){
-          assert( ntk.visited( n ) != cover_id );
-          if ( ntk.visited( n ) == divisor_id )
-            return; /* next */
-
-          /* unique push back */
-          if ( std::find( std::begin( roots ), std::end( roots ), n ) == std::end( roots ) )
-            roots.push_back( n );
-        });
-
-      /* sort the leaves */
-      std::sort( std::begin( roots ), std::end( roots ) );
-    }
-#endif
-
-    std::vector<node> divs;
-    collect_divisors( divs, root, leaves );
-
-    // print( root, leaves, divs );
-
-    return { subnetwork_type{leaves,divs} };
-  }
-
-  void print( node const& root, std::vector<node> const& leaves, std::vector<node> const& divs, std::ostream& os = std::cout ) const
-  {
-    os << "[xcut] r:" << root << " l:{ ";
-    for ( const auto& l : leaves )
-    {
-      os << l << ' ';
-    }
-    os << "} ";
-
-    os << "d:{ ";
-    for ( const auto& d : divs )
-    {
-      os << d << ' ';
-    }
-    os << "}";
-    os << std::endl;
-  }
-
-private:
-  void expand_fanin_cut( std::vector<node>& leaves )
-  {
-    while ( true )
-    {
-      /* step 1: select a node from the leaves to expand the cut */
-      auto it = std::begin( leaves );
-      while ( it != std::end( leaves ) )
-      {
-        /* skip PIs */
-        if ( ntk.is_pi( *it ) )
-        {
-          ++it;
-          continue;
-        }
-
-        /* skip node if not fanout-free */
-        if ( ntk.fanout_size( *it ) > 1 )
-        {
-          ++it;
-          continue;
-        }
-
-        if ( cut_size > 0 && leaves.size() - 1 + ntk.fanin_size( *it ) > uint32_t( cut_size ) )
-        {
-          ++it;
-          continue;
-        }
-
-        /* found a possible node at which we should expand */
-        break;
-      }
-
-      /* if we cannot find a leave to expand, we are done with this cut */
-      if ( it == std::end( leaves ) )
-        return;
-
-      /* step 2: expand the cut, i.e., remove the node from the cut and add its fanin */
-      auto const node = *it;
-      leaves.erase( it );
-      ntk.set_visited( *it, cover_id ); /* mark node as part of the current cone */
-
-      ntk.foreach_fanin( node, [&]( auto const &f ){
-          auto const n = ntk.get_node( f );
-
-          /* unique push back */
-          if ( std::find( std::begin( leaves ), std::end( leaves ), n ) == std::end( leaves ) )
-            leaves.push_back( n );
-        });
-
-      /* sort the leaves */
-      std::sort( std::begin( leaves ), std::end( leaves ) );
-    }
-  }
-
-  void collect_divisors( std::vector<node>& divs, node const& root, std::vector<node> const& leaves )
-  {
-    /* traverse in fanout-direction from leaves and merge nodes with fanin in the current cover */
-    for ( const auto r : leaves )
-    {
-      ntk.foreach_fanout( r, [&]( const auto& d ){
-          if ( ntk.visited( d ) == cover_id || ntk.visited( d ) == divisor_id )
-            return; /* next */
-
-          if ( ntk.level( d ) > ntk.level( root ) )
-          {
-            ntk.set_visited( d, divisor_id );
-            return; /* next */
-          }
-
-          /* check if all fanins are part of the cone */
-          bool all_fanins_in_cover = true;
-          ntk.foreach_fanin( d, [&]( const auto& f ){
-              auto const n = ntk.get_node( f );
-              if ( ntk.visited( n ) != cover_id )
-              {
-                all_fanins_in_cover = false;
-                return;
-              }
-            });
-          if ( all_fanins_in_cover )
-          {
-            divs.push_back( d );
-            ntk.set_visited( d, cover_id );
-          }
-          else
-          {
-            ntk.set_visited( d, divisor_id );
-          }
-        });
-    }
-
-    std::sort( std::begin( divs ), std::end( divs ) );
-  }
-
-private:
-  Ntk const& ntk;
-  int32_t cut_size;
-
-  uint32_t cover_id{0};
-  uint32_t divisor_id{0};
-}; /* xcut */
-
-
 int main()
 {
   using namespace experiments;
@@ -508,7 +189,7 @@ int main()
   std::cout << "[i] cache size = " << ( exact_ps.cache ? exact_ps.cache->size() : 0 ) << std::endl;
   std::cout << "[i] blacklist cache size = " << ( exact_ps.blacklist_cache ? exact_ps.blacklist_cache->size() : 0 ) << std::endl;
 
-  for ( auto const& benchmark : epfl_benchmarks( ~(mem_ctrl | experiments::log2 | experiments::div | hyp) ) )
+  for ( auto const& benchmark : epfl_benchmarks( ~arbiter ) )
   {
     using aig_view_t = fanout_view2<depth_view<aig_network>>;
 
@@ -528,7 +209,7 @@ int main()
     aig_view_t aig_view{depth_aig};
 
     /* cut computing function */
-    ffc_cut<aig_view_t> cut_comp( aig_view, ps.max_pis );
+    xcut<aig_view_t> cut_comp( aig_view, ps.max_pis );
     refactoring_inplace( aig_view, cut_comp, resyn, ps, &st );
     aig = cleanup_dangling( aig ); // invalidates aig_view
 
