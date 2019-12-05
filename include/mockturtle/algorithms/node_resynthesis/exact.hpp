@@ -175,10 +175,10 @@ public:
           return it->second;
         }
       }
-      else if ( !with_dont_cares && _ps.blacklist_cache )
+      if ( !with_dont_cares && _ps.blacklist_cache )
       {
         const auto it = _ps.blacklist_cache->find( function );
-        if ( it != _ps.blacklist_cache->end() && _ps.conflict_limit >= it->second )
+        if ( it != _ps.blacklist_cache->end() && ( it->second == 0 || _ps.conflict_limit <= it->second ) )
         {
           return std::nullopt;
         }
@@ -326,10 +326,10 @@ public:
           return it->second;
         }
       }
-      else if ( !with_dont_cares && _ps.blacklist_cache )
+      if ( !with_dont_cares && _ps.blacklist_cache )
       {
         const auto it = _ps.blacklist_cache->find( function );
-        if ( it != _ps.blacklist_cache->end() && _ps.conflict_limit >= it->second )
+        if ( it != _ps.blacklist_cache->end() && ( it->second == 0 || _ps.conflict_limit <= it->second ) )
         {
           return std::nullopt;
         }
