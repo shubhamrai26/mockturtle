@@ -36,10 +36,21 @@
 
 #include <kitty/dynamic_truth_table.hpp>
 
+#include "traits.hpp"
 #include "../dsd_decomposition.hpp"
 
 namespace mockturtle
 {
+
+/*! \brief Parameters for dsd_resynthesis function. */
+struct dsd_resynthesis_params
+{
+  /*! \brief Skip resynthesis on prime nodes, if it exceeds this limit. */
+  std::optional<uint32_t> prime_input_limit;
+
+  /*! \brief DSD decomposition parameters */
+  dsd_decomposition_params dsd_ps;
+};
 
 /*! \brief Resynthesis function based on DSD decomposition.
  *
@@ -68,8 +79,9 @@ template<class Ntk, class ResynthesisFn>
 class dsd_resynthesis
 {
 public:
-  explicit dsd_resynthesis( ResynthesisFn& resyn_fn )
-      : _resyn_fn( resyn_fn )
+  explicit dsd_resynthesis( ResynthesisFn& resyn_fn, dsd_resynthesis_params const& ps = {} )
+      : _resyn_fn( resyn_fn ),
+        _ps( ps )
   {
   }
 
@@ -80,8 +92,10 @@ public:
     const auto on_prime = [&]( kitty::dynamic_truth_table const& remainder, std::vector<signal<Ntk>> const& leaves ) {
       success = false;
       signal<Ntk> f = ntk.get_constant( false );
-      if ( leaves.size() > 7 )
+      if ( _ps.prime_input_limit && leaves.size() > *_ps.prime_input_limit )
+      {
         return f;
+      }
 
       const auto on_signal = [&]( signal<Ntk> const& _f ) {
         if ( !success )
@@ -92,11 +106,16 @@ public:
         return true;
       };
       auto _leaves = leaves;
+
+      if constexpr ( has_set_bounds_v<ResynthesisFn> )
+      {
+        _resyn_fn.set_bounds( static_cast<uint32_t>( _leaves.size() ), std::nullopt );
+      }
       _resyn_fn( ntk, remainder, _leaves.begin(), _leaves.end(), on_signal );
       return f;
     };
 
-    const auto f = dsd_decomposition( ntk, function, std::vector<signal<Ntk>>( begin, end ), on_prime );
+    const auto f = dsd_decomposition( ntk, function, std::vector<signal<Ntk>>( begin, end ), on_prime, _ps.dsd_ps );
     if ( success )
     {
       fn( f );
@@ -105,6 +124,7 @@ public:
 
 private:
   ResynthesisFn& _resyn_fn;
+  dsd_resynthesis_params _ps;
 };
 
 } /* namespace mockturtle */

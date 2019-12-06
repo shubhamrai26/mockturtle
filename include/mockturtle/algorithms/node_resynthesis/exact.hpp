@@ -322,6 +322,10 @@ public:
     spec.add_noreapply_clauses = _ps.add_noreapply_clauses;
     spec.add_symvar_clauses = _ps.add_symvar_clauses;
     spec.conflict_limit = _ps.conflict_limit;
+    if ( _lower_bound )
+    {
+      spec.initial_steps = *_lower_bound;
+    }
     spec[0] = function;
 
     bool with_dont_cares{false};
@@ -429,11 +433,20 @@ public:
     fn( c->is_output_inverted( 0 ) ? !signals.back() : signals.back() );
   }
 
+  void set_bounds( std::optional<uint32_t> const& lower_bound, std::optional<uint32_t> const& upper_bound )
+  {
+    _lower_bound = lower_bound;
+    _upper_bound = upper_bound;
+  }
+
 private:
   bool _allow_xor = false;
   exact_resynthesis_params _ps;
 
   std::vector<std::pair<signal, kitty::dynamic_truth_table>> existing_functions;
+
+  std::optional<uint32_t> _lower_bound;
+  std::optional<uint32_t> _upper_bound;
 };
 
 } /* namespace mockturtle */
