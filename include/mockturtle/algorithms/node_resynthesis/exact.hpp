@@ -324,8 +324,6 @@ public:
     spec.conflict_limit = _ps.conflict_limit;
     spec[0] = function;
 
-    // std::cout << "function to synthesize: " << kitty::to_hex( function ) << std::endl;
-
     bool with_dont_cares{false};
     if ( !kitty::is_const0( dont_cares ) )
     {
@@ -336,7 +334,6 @@ public:
     /* add existing functions */
     for ( const auto& f : existing_functions )
     {
-      // std::cout << "add existing function: " << ntk.get_node( f.first ) << ' ' << kitty::to_hex( f.second ) << std::endl;
       spec.add_function( f.second );
     }
 
@@ -358,8 +355,6 @@ public:
         }
       }
 
-      // std::cout << "[i] call synthesis with " << existing_functions.size() << " additional functions" << std::endl;
-
       percy::chain c;
       if ( const auto result = percy::synthesize( spec, c, _ps.solver_type,
                                                   _ps.encoder_type,
@@ -374,7 +369,7 @@ public:
       }
 
       assert( kitty::to_hex( c.simulate()[0u] ) == kitty::to_hex( function ) );
-
+      
       if ( !with_dont_cares && _ps.cache )
       {
         ( *_ps.cache )[function] = c;

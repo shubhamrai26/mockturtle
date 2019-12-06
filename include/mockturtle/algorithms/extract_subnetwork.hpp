@@ -154,7 +154,7 @@ public:
     cover_id = ntk.trav_id();
 
     ntk.incr_trav_id();
-    divisor_id = ntk.trav_id();
+    visited_id = ntk.trav_id();
 
     std::vector<node> leaves = { root };
     expand_fanin_cut( leaves );
@@ -163,7 +163,7 @@ public:
     /* skip all the computations of the divisors if the leave size is too small */
     if ( leaves.size() <= 2u )
     {
-      return { subnetwork{leaves,{}} };
+      return { subnetwork{leaves} };
     }
 
     /* mark leaves visited */
@@ -174,34 +174,34 @@ public:
 
     /* TODO: could be replaced with a cheaper depth check */
 #if 0
-    /* mark tfo of root as visited */
-    std::vector<node> roots = { root };
-    while ( true )
-    {
-      auto it = std::begin( roots );
-
-      /* if we cannot find a root to expand, we are done  */
-      if ( it == std::end( roots ) )
-        break;
-
-      /* expand roots, i.e., remove the node from roots and add its fanout */
-      auto const node = *it;
-      roots.erase( it );
-      ntk.set_visited( node, divisor_id ); /* mark node as visited */
-
-      ntk.foreach_fanout( node, [&]( auto const &n ){
-          assert( ntk.visited( n ) != cover_id );
-          if ( ntk.visited( n ) == divisor_id )
-            return; /* next */
-
-          /* unique push back */
-          if ( std::find( std::begin( roots ), std::end( roots ), n ) == std::end( roots ) )
-            roots.push_back( n );
-        });
-
-      /* sort the leaves */
-      std::sort( std::begin( roots ), std::end( roots ) );
-    }
+     /* mark tfo of root as visited */
+     std::vector<node> roots = { root };
+     while ( true )
+     {
+       auto it = std::begin( roots );
+ 
+       /* if we cannot find a root to expand, we are done  */
+       if ( it == std::end( roots ) )
+         break;
+ 
+       /* expand roots, i.e., remove the node from roots and add its fanout */
+       auto const node = *it;
+       roots.erase( it );
+       ntk.set_visited( node, visited_id ); /* mark node as visited */
+ 
+       ntk.foreach_fanout( node, [&]( auto const &n ){
+           assert( ntk.visited( n ) != cover_id );
+           if ( ntk.visited( n ) == visited_id )
+             return; /* next */
+ 
+           /* unique push back */
+           if ( std::find( std::begin( roots ), std::end( roots ), n ) == std::end( roots ) )
+             roots.push_back( n );
+         });
+ 
+       /* sort the leaves */
+       std::sort( std::begin( roots ), std::end( roots ) );
+     }
 #endif
 
     std::vector<node> divs;
@@ -209,7 +209,7 @@ public:
 
     // print( root, leaves, divs );
 
-    return { subnetwork{leaves,divs} };
+    return { subnetwork{leaves,{},divs} };
   }
 
   void print( node const& root, std::vector<node> const& leaves, std::vector<node> const& divs, std::ostream& os = std::cout ) const
@@ -291,12 +291,12 @@ private:
     for ( const auto r : leaves )
     {
       ntk.foreach_fanout( r, [&]( const auto& d ){
-          if ( ntk.visited( d ) == cover_id || ntk.visited( d ) == divisor_id )
+          if ( ntk.visited( d ) == cover_id || ntk.visited( d ) == visited_id )
             return; /* next */
 
           if ( ntk.level( d ) > ntk.level( root ) )
           {
-            ntk.set_visited( d, divisor_id );
+            ntk.set_visited( d, visited_id );
             return; /* next */
           }
 
@@ -317,7 +317,7 @@ private:
           }
           else
           {
-            ntk.set_visited( d, divisor_id );
+            ntk.set_visited( d, visited_id );
           }
         });
     }
@@ -330,7 +330,140 @@ private:
   int32_t cut_size;
 
   uint32_t cover_id{0};
-  uint32_t divisor_id{0};
+  uint32_t visited_id{0};
 }; /* xcut */
+
+/*! \brief Double-boundary cut.
+ *
+ */
+template<typename Ntk>
+class dbcut
+{
+public:
+  using node = typename Ntk::node;
+
+  struct subnetwork
+  {
+    std::vector<node> leaves{};
+    std::vector<node> roots{}; /* not used */
+    std::vector<node> divs{};
+  }; /* subnetwork */
+
+public:
+  explicit dbcut( Ntk const& ntk, int32_t inner_cut_size = 6, int32_t outer_cut_size = -1 )
+    : ntk( ntk )
+    , inner_cut_size( inner_cut_size )
+    , outer_cut_size( outer_cut_size )
+  {
+    assert( inner_cut_size < outer_cut_size );
+  }
+
+  std::vector<subnetwork> operator()( node const& root )
+  {
+    std::vector<node> inner_leaves = { root };
+    expand_fanin_cut( inner_leaves, inner_cut_size );
+    sort( std::begin( inner_leaves ), std::end( inner_leaves ) );
+
+    std::vector<node> outer_leaves( inner_leaves );
+    std::vector<node> divs;
+    expand_fanin_cut( outer_leaves, outer_cut_size, [&divs]( auto const& d ){ divs.emplace_back( d ); } );
+    sort( std::begin( outer_leaves ), std::end( outer_leaves ) );
+
+    /* skip all the computations of the divisors if the leave size is too small */
+    if ( outer_leaves.size() <= 2u )
+    {
+      return { subnetwork{outer_leaves,{}} };
+    }
+
+    // print( root, outer_leaves, divs );
+
+    return { subnetwork{outer_leaves,{},divs} };
+  }
+
+  void print( node const& root, std::vector<node> const& leaves, std::vector<node> const& divs, std::ostream& os = std::cout ) const
+  {
+    os << "[dbcut] r:" << root << " l:{ ";
+    for ( const auto& l : leaves )
+    {
+      os << l << ' ';
+    }
+    os << "} ";
+
+    os << "d:{ ";
+    for ( const auto& d : divs )
+    {
+      os << d << ' ';
+    }
+    os << "}";
+    os << std::endl;
+  }
+
+private:
+  void expand_fanin_cut( std::vector<node>& leaves, int32_t cut_size )
+  {
+    expand_fanin_cut( leaves, cut_size, []( const auto& ){} );
+  }
+
+  template<typename Fn>
+  void expand_fanin_cut( std::vector<node>& leaves, int32_t cut_size, Fn&& fn )
+  {
+    while ( true )
+    {
+      /* step 1: select a node from the leaves to expand the cut */
+      auto it = std::begin( leaves );
+      while ( it != std::end( leaves ) )
+      {
+        /* skip PIs */
+        if ( ntk.is_pi( *it ) )
+        {
+          ++it;
+          continue;
+        }
+
+        /* skip node if not fanout-free */
+        if ( ntk.fanout_size( *it ) > 1 )
+        {
+          ++it;
+          continue;
+        }
+
+        if ( cut_size > 0 && leaves.size() - 1 + ntk.fanin_size( *it ) > uint32_t( cut_size ) )
+        {
+          ++it;
+          continue;
+        }
+
+        /* found a possible node at which we should expand */
+        break;
+      }
+
+      /* if we cannot find a leave to expand, we are done with this cut */
+      if ( it == std::end( leaves ) )
+        return;
+
+      /* step 2: expand the cut, i.e., remove the node from the cut and add its fanin */
+      auto const node = *it;
+      leaves.erase( it );
+
+      fn( *it ); /* call functor on node */
+
+      ntk.foreach_fanin( node, [&]( auto const &f ){
+          auto const n = ntk.get_node( f );
+
+          /* unique push back */
+          if ( std::find( std::begin( leaves ), std::end( leaves ), n ) == std::end( leaves ) )
+            leaves.push_back( n );
+        });
+
+      /* sort the leaves */
+      std::sort( std::begin( leaves ), std::end( leaves ) );
+    }
+  }
+
+private:
+  Ntk const& ntk;
+  int32_t inner_cut_size;
+  int32_t outer_cut_size;
+}; /* db_cut */
 
 } /* mockturtle */
