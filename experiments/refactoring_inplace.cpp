@@ -25,13 +25,15 @@
 
 #include <mockturtle/algorithms/extract_subnetwork.hpp>
 #include <mockturtle/algorithms/node_resynthesis/exact.hpp>
-#include <mockturtle/algorithms/node_resynthesis/xag_npn.hpp>
 #include <mockturtle/algorithms/node_resynthesis/dsd.hpp>
+#include <mockturtle/algorithms/node_resynthesis/composed.hpp>
+#include <mockturtle/algorithms/node_resynthesis/cached.hpp>
 #include <mockturtle/algorithms/refactoring_inplace.hpp>
 #include <mockturtle/algorithms/cleanup.hpp>
 #include <mockturtle/views/fanout_view.hpp>
 #include <mockturtle/networks/aig.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
+#include <mockturtle/utils/json_utils.hpp>
 #include <lorina/aiger.hpp>
 
 #include <experiments.hpp>
@@ -41,30 +43,6 @@ inline bool file_exists( std::string const& name )
   std::ifstream f(name.c_str());
   return f.good();
 }
-
-namespace nlohmann
-{
-  template <>
-  struct adl_serializer<kitty::dynamic_truth_table>
-  {
-    static void to_json( json& j, kitty::dynamic_truth_table const& tt )
-    {
-      j = {
-        {"_bits", tt._bits},
-        {"_num_vars", tt._num_vars}
-      };
-    }
-
-    static void from_json( json const& j, kitty::dynamic_truth_table& tt )
-    {
-      if ( !j.is_null() )
-      {
-        tt._bits = j.at( "_bits" ).get<std::vector<uint64_t>>();
-        tt._num_vars = j.at( "_num_vars" ).get<int>();
-      }
-    }
-  };
-} // namespace nlohmann
 
 namespace nlohmann
 {
@@ -151,51 +129,39 @@ int main()
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, double, float, bool> exp( "cut_rewriting", "benchmark", "size_before", "size_after", "diff", "diff[%]", "runtime", "equivalent" );
+  using network_type = aig_network;
+  
+  experiment<std::string, uint32_t, uint32_t, uint32_t, double, float, bool> exp( "refactoring_inplace", "benchmark", "size_before", "size_after", "diff", "diff[%]", "runtime", "equivalent" );
 
   /* refactoring parameters */
   refactoring_inplace_params ps;
-  ps.progress = true;
+  // ps.progress = true;
   ps.max_pis = 6;
 
-  /* exact resynthesis params */
-  exact_resynthesis_params exact_ps;
-#if 0
-  if ( file_exists( "exact_ps.json" ) )
-  {
-    // if config file exists, read configuration from file */
-    std::ifstream ifs( "exact_ps.json" );
-    nlohmann::json js;
-    ifs >> js;
-    exact_ps = js.get<exact_resynthesis_params>();
-    ifs.close();
-  }
-  else
-  {
-    /* if config file does not exist, use the default configuration */
-    exact_ps.conflict_limit = 10000;
-    exact_ps.cache = std::make_shared<exact_resynthesis_params::cache_map_t>();
-    exact_ps.blacklist_cache = std::make_shared<exact_resynthesis_params::blacklist_cache_map_t>();
-  }
-#endif
-  exact_ps.conflict_limit = 10000;
-
   /* resynthesis function */
-  exact_aig_resynthesis<aig_network> resyn( false, exact_ps );
-  // dsd_resynthesis<aig_network, decltype( resyn )> dsd_resyn( resyn );
+  dsd_resynthesis_params dsd_ps;
+  dsd_ps.prime_input_limit = 7u;
+  dsd_ps.dsd_ps.with_xor = std::is_same_v<network_type, xag_network>;
 
+  auto cexact_resyn = cached_exact_xag_resynthesis<network_type>( "/Users/riener/exact_cache.json", 10e2, *dsd_ps.prime_input_limit );
+  dsd_resynthesis<network_type, decltype( cexact_resyn )> dsd_resyn( cexact_resyn, dsd_ps );
+  cached_resynthesis<network_type, decltype( dsd_resyn )> cdsd_resyn( dsd_resyn, ps.max_pis, "/Users/riener/dsd_cache.json" );
+
+  cexact_resyn.report();
+  cdsd_resyn.report();
+  
   /* print parameters of exact resynthesis */
-  std::cout << "[i] conflict limit = " << exact_ps.conflict_limit << std::endl;
-  std::cout << "[i] cache size = " << ( exact_ps.cache ? exact_ps.cache->size() : 0 ) << std::endl;
-  std::cout << "[i] blacklist cache size = " << ( exact_ps.blacklist_cache ? exact_ps.blacklist_cache->size() : 0 ) << std::endl;
+  // std::cout << "[i] conflict limit = " << exact_ps.conflict_limit << std::endl;
+  // std::cout << "[i] cache size = " << ( exact_ps.cache ? exact_ps.cache->size() : 0 ) << std::endl;
+  // std::cout << "[i] blacklist cache size = " << ( exact_ps.blacklist_cache ? exact_ps.blacklist_cache->size() : 0 ) << std::endl;
 
   for ( auto const& benchmark : epfl_benchmarks( ~arbiter ) )
   {
-    using aig_view_t = fanout_view2<depth_view<aig_network>>;
+    using ntk_view_t = fanout_view2<depth_view<network_type>>;
 
     fmt::print( "[i] processing {}\n", benchmark );
 
-    aig_network aig;
+    network_type aig;
     if ( lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( aig ) ) != lorina::return_code::success )
     {
       fmt::print( "[i] could not read benchmark {}\n", benchmark );
@@ -205,13 +171,13 @@ int main()
     uint32_t const size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
-    depth_view<aig_network> depth_aig{aig};
-    aig_view_t aig_view{depth_aig};
+    depth_view<network_type> depth_aig{aig};
+    ntk_view_t ntk_view{depth_aig};
 
     /* cut computing function */
-    xcut<aig_view_t> cut_comp( aig_view, ps.max_pis );
-    refactoring_inplace( aig_view, cut_comp, resyn, ps, &st );
-    aig = cleanup_dangling( aig ); // invalidates aig_view
+    xcut<ntk_view_t> cut_comp( ntk_view, ps.max_pis );
+    refactoring_inplace( ntk_view, cut_comp, cexact_resyn, ps, &st );
+    aig = cleanup_dangling( aig ); // invalidates ntk_view
 
     uint32_t const size_after = aig.num_gates();
 
@@ -239,16 +205,8 @@ int main()
   exp.table();
   // exp.compare( {}, {}, {"size_after"});
 
-  std::cout << "[i] conflict limit = " << exact_ps.conflict_limit << std::endl;  
-  std::cout << "[i] cache size = " << ( exact_ps.cache ? exact_ps.cache->size() : 0 ) << std::endl;
-  std::cout << "[i] blacklist cache size = " << ( exact_ps.blacklist_cache ? exact_ps.blacklist_cache->size() : 0 ) << std::endl;
-
-  /* store exact resynthesis params */
-  // nlohmann::json js = exact_ps;
-
-  // std::ofstream ofs( "exact_ps.json" );
-  // ofs << std::setw( 2 ) << js << std::endl;
-  // ofs.close();
+  cexact_resyn.report();
+  cdsd_resyn.report();
 
   return 0;
 }

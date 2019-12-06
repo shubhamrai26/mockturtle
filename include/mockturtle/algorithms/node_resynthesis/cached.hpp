@@ -172,7 +172,7 @@ public:
       }
     }
   }
-
+  
   void set_bounds( std::optional<uint32_t> const& lower_bound, std::optional<uint32_t> const& upper_bound )
   {
     if constexpr ( has_set_bounds_v<ResynthesisFn> )
@@ -181,6 +181,22 @@ public:
     }
   }
 
+  void clear_functions()
+  {
+    if constexpr ( has_clear_functions_v<ResynthesisFn> )
+    {
+      _resyn_fn.clear_functions();
+    }
+  }
+
+  void add_function( signal<Ntk> const& s, kitty::dynamic_truth_table const& tt )
+  {
+    if constexpr ( has_add_function_v<ResynthesisFn, Ntk> )
+    {
+      _resyn_fn.add_function( s, tt );
+    }
+  }
+    
   void report() const
   {
     fmt::print( "[i] cache hits              = {}\n", _cache_hits );
