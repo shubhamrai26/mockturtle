@@ -25,13 +25,15 @@
 
 #pragma once
 
-#include <vector>
+#include <algorithm>
+#include <cassert>
 #include <iostream>
+#include <vector>
 
 namespace mockturtle
 {
 
-/*! \brief Fanout-free cone cut
+/*! \brief Fanout-free cut
  *
  *  Eagerly compute a fanout-free cut into fanin-direction.
  */
@@ -124,7 +126,7 @@ private:
 
 /*! \brief Extended FFC cut.
  *
- * Eagerly compute a fanout-free cone cut into fanin-direction and
+ * Eagerly compute a fanout-free cut into fanin-direction and
  * collect additional divisors that depend on the same support.
  */
 template<typename Ntk>
