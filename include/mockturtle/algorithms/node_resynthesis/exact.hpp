@@ -46,6 +46,8 @@
 #include "../../networks/aig.hpp"
 #include "../../networks/klut.hpp"
 
+#include <fmt/format.h>
+
 namespace mockturtle
 {
 
@@ -427,6 +429,56 @@ public:
     }
 
     fn( c->is_output_inverted( 0 ) ? !signals.back() : signals.back() );
+
+#if 0
+    {
+      /* re-simulate the chain with mockturtle for debugging */
+      using node = typename Ntk::node;
+
+      auto const output_function = c->is_output_inverted( 0 ) ? !signals.back() : signals.back();
+
+      std::vector<node> leaves;
+      for ( auto it = begin; it != end; ++it )
+      {
+        leaves.emplace_back( ntk.get_node( *it ) );
+      }
+
+      /* define a view for the chain */
+      cut_view<Ntk> cutv( ntk, leaves, ntk.get_node( output_function ) );
+
+      /* define a mapping from signal to signal */
+      auto map_signal = [&]( signal const& s ){
+        auto const s_prime = cutv.make_signal( cutv.node_to_index( ntk.get_node( s ) ) );
+        return ntk.is_complemented( s ) ? !s_prime : s_prime;
+      };
+
+      unordered_node_map<kitty::dynamic_truth_table, Ntk> values( cutv );
+      for ( const auto& f : existing_functions )
+      {
+        /* TODO: this line will currently fail because the divisors are not in the cut */
+        values[map_signal( f.first )] = f.second;
+      }
+
+      default_simulator<kitty::dynamic_truth_table> simulator( leaves.size() );
+      simulate_nodes<kitty::dynamic_truth_table,Ntk>( cutv, values, simulator );
+
+      auto to_string = [&]( signal const& s ){
+        return fmt::format( "{}{}", ntk.is_complemented( s ) ? '!' : ' ', ntk.get_node( s ) );
+      };
+
+      for ( const auto& s : signals )
+      {
+        std::cout << to_string( s ) << " maps to "
+                  << to_string( map_signal( s ) ) << " with value "
+                  << kitty::to_hex( values[map_signal( s )] ) << std::endl;
+      }
+
+      /* print results */
+      std::cout << kitty::to_hex( function ) << std::endl;
+      std::cout << to_string( output_function ) << " maps to " << to_string( map_signal( output_function ) ) << " with value " <<
+        kitty::to_hex( values[map_signal( output_function )] ) << std::endl;
+    }
+#endif
   }
 
 private:
