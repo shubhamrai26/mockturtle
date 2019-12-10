@@ -452,7 +452,7 @@ public:
         return ntk.is_complemented( s ) ? !s_prime : s_prime;
       };
 
-      unordered_node_map<kitty::dynamic_truth_table, Ntk> values( cutv );
+      unordered_node_map<kitty::dynamic_truth_table,cut_view<Ntk>> values( cutv );
       for ( const auto& f : existing_functions )
       {
         /* TODO: this line will currently fail because the divisors are not in the cut */
@@ -460,7 +460,7 @@ public:
       }
 
       default_simulator<kitty::dynamic_truth_table> simulator( leaves.size() );
-      simulate_nodes<kitty::dynamic_truth_table,Ntk>( cutv, values, simulator );
+      simulate_nodes<kitty::dynamic_truth_table,cut_view<Ntk>>( cutv, values, simulator );
 
       auto to_string = [&]( signal const& s ){
         return fmt::format( "{}{}", ntk.is_complemented( s ) ? '!' : ' ', ntk.get_node( s ) );
