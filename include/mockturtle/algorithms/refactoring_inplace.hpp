@@ -41,7 +41,7 @@
 
 #include <percy/percy.hpp>
 
-#include <kitty/static_truth_table.hpp>
+#include <kitty/dynamic_truth_table.hpp>
 #include <kitty/constructors.hpp>
 
 namespace mockturtle
@@ -252,95 +252,6 @@ private:
   Ntk const& ntk;
 };
 
-template<typename Ntk, typename TT>
-class simulator
-{
-public:
-  using node = typename Ntk::node;
-  using signal = typename Ntk::signal;
-  using truthtable_t = TT;
-
-  explicit simulator( Ntk const& ntk, uint32_t num_divisors, uint32_t max_pis )
-    : ntk( ntk )
-    , num_divisors( num_divisors )
-    , tts( num_divisors + 1 )
-    , node_to_index( ntk.size(), 0u )
-    , phase( ntk.size(), false )
-  {
-    auto tt = kitty::create<truthtable_t>( max_pis );
-    tts[0] = tt;
-
-    for ( auto i = 0; i < tt.num_vars(); ++i )
-    {
-      kitty::create_nth_var( tt, i );
-      tts[i+1] = tt;
-    }
-  }
-
-  void resize()
-  {
-    if ( ntk.size() > node_to_index.size() )
-      node_to_index.resize( ntk.size(), 0u );
-    if ( ntk.size() > phase.size() )
-      phase.resize( ntk.size(), false );
-  }
-
-  void assign( node const& n, uint32_t index )
-  {
-    assert( n < node_to_index.size() );
-    assert( index < num_divisors + 1 );
-    node_to_index[n] = index;
-  }
-
-  truthtable_t get_tt( signal const& s ) const
-  {
-    auto const tt = tts.at( node_to_index.at( ntk.get_node( s ) ) );
-    return ntk.is_complemented( s ) ? ~tt : tt;
-  }
-
-  void set_tt( uint32_t index, truthtable_t const& tt )
-  {
-    tts[index] = tt;
-  }
-
-  void normalize( std::vector<node> const& nodes )
-  {
-    for ( const auto& n : nodes )
-    {
-      assert( n < phase.size() );
-      assert( n < node_to_index.size() );
-
-      if ( n == 0 )
-        return;
-
-      auto& tt = tts[node_to_index.at( n )];
-      if ( kitty::get_bit( tt, 0 ) )
-      {
-        tt = ~tt;
-        phase[n] = true;
-      }
-      else
-      {
-        phase[n] = false;
-      }
-    }
-  }
-
-  bool get_phase( node const& n ) const
-  {
-    assert( n < phase.size() );
-    return phase.at( n );
-  }
-
-private:
-  Ntk const& ntk;
-  uint32_t num_divisors;
-
-  std::vector<truthtable_t> tts;
-  std::vector<uint32_t> node_to_index;
-  std::vector<bool> phase;
-}; /* simulator */
-
 template<class Ntk, class CutCompFn, class RefactoringFn>
 class refactoring_inplace_impl
 {
@@ -350,7 +261,6 @@ public:
 
   explicit refactoring_inplace_impl( Ntk& ntk, CutCompFn&& cut_comp_fn, RefactoringFn&& refactoring_fn, refactoring_inplace_params const& ps, refactoring_inplace_stats& st )
     : ntk( ntk )
-    , sim( ntk, ps.max_divisors, ps.max_pis )
     , cut_comp_fn( cut_comp_fn )
     , refactoring_fn( refactoring_fn )
     , ps( ps )
@@ -405,7 +315,7 @@ public:
         pbar( i, size - i, candidates, st.estimated_gain, st.num_synthesis_successes, st.num_synthesis_successes + st.num_synthesis_timeouts );
 
         /* compute a cut for the current node */
-        auto const subnetworks = call_with_stopwatch( st.time_cuts, [&]() {
+        auto /* const */ subnetworks = call_with_stopwatch( st.time_cuts, [&]() {
             return cut_comp_fn( n );
           });
 
@@ -449,8 +359,16 @@ public:
 
               /* update network */
               call_with_stopwatch( st.time_substitute, [&]() {
-                  // std::cout << "[i] substitute " << ' ' << n <<  " with " << ntk.get_node( *g ) << std::endl;
+                  // auto const tt1 = simulate_subnetwork( ntk.make_signal( n ), subnetworks[0u].leaves, subnetworks[0u].divs );
+
+                  // std::cout << "[i] substitute " << ' ' << n <<  " with " << ntk.get_node( *g ) << ':' << ntk.is_complemented( *g ) << std::endl;
+                  // cut_comp_fn.print( n, subnetworks[0u].leaves, subnetworks[0u].divs );
+
                   ntk.substitute_node( n, *g );
+                  // auto const tt2 = simulate_subnetwork( *g, subnetworks[0u].leaves, subnetworks[0u].divs );
+
+                  /* ensure local equivalence */
+                  // assert( tt1 == tt2 );
                 });
             }
           }
@@ -464,45 +382,20 @@ public:
   }
 
 private:
-  void simulate( std::vector<node> const &leaves )
+  kitty::dynamic_truth_table simulate_subnetwork( signal const& s, std::vector<node> const& leaves, std::vector<node> const& divs ) const
   {
-    sim.resize();
-    for ( auto i = 0u; i < divs.size(); ++i )
-    {
-      const auto d = divs.at( i );
+    cut_view<Ntk> cutv( ntk, leaves, s, divs );
 
-      /* skip constant 0 */
-      if ( d == 0 )
-        continue;
+    unordered_node_map<kitty::dynamic_truth_table,cut_view<Ntk>> values( cutv );
+    default_simulator<kitty::dynamic_truth_table> simulator( leaves.size() );
+    simulate_nodes<kitty::dynamic_truth_table,cut_view<Ntk>>( cutv, values, simulator );
 
-      /* assign leaves to variables */
-      if ( i < leaves.size() )
-      {
-        sim.assign( d, i + 1 );
-        continue;
-      }
-
-      /* compute truth tables of inner nodes */
-      sim.assign( d, i - uint32_t( leaves.size() ) + ps.max_pis + 1 );
-      std::vector<kitty::dynamic_truth_table> tts;
-      ntk.foreach_fanin( d, [&]( const auto& s, auto i ){
-          (void)i;
-          tts.emplace_back( sim.get_tt( ntk.make_signal( ntk.get_node( s ) ) ) ); /* ignore sign */
-        });
-
-      auto const tt = ntk.compute( d, tts.begin(), tts.end() );
-      sim.set_tt( i - uint32_t( leaves.size() ) + ps.max_pis + 1, tt );
-    }
-
-    /* normalize truth tables */
-    sim.normalize( divs );
+    return cutv.is_complemented( s ) ? ~values[s] : values[s];
   }
 
   template<class SubNtk>
   std::optional<signal> evaluate( node const& root, SubNtk const& subntk )
   {
-    uint32_t const required = std::numeric_limits<uint32_t>::max();
-
     /* collect the MFFC */
     int32_t num_mffc_nodes = call_with_stopwatch( st.time_mffc, [&]() {
         node_mffc_inside collector( ntk );
@@ -511,19 +404,11 @@ private:
         return num_mffc_nodes;
       });
 
-    /* collect the divisor nodes in the cut */
-    bool div_comp_success = call_with_stopwatch( st.time_divs, [&]() {
-        return collect_divisors( root, subntk.leaves, required );
-      });
-    if ( !div_comp_success )
-    {
-      return std::nullopt;
-    }
-
     assert( num_mffc_nodes > 0 );
     if ( num_mffc_nodes == 1u )
       return std::nullopt; /* next */
 
+#if 0
     /* update statistics */
     st.num_total_divisors += num_divs;
     st.num_total_leaves += subntk.leaves.size();
@@ -534,6 +419,16 @@ private:
     /* get truth table of root */
     auto const tt_root = sim.get_tt( ntk.make_signal( root ) );
     auto const tt_phase = sim.get_phase( root );
+#endif
+
+    cut_view<Ntk> cutv( ntk, subntk.leaves, ntk.make_signal( root ), subntk.divs );
+    unordered_node_map<kitty::dynamic_truth_table,cut_view<Ntk>> values( cutv );
+    default_simulator<kitty::dynamic_truth_table> simulator( subntk.leaves.size() );
+    call_with_stopwatch( st.time_simulation, [&]() {
+        simulate_nodes<kitty::dynamic_truth_table,cut_view<Ntk>>( cutv, values, simulator );
+      } );
+
+    auto const tt_root = values[root];
 
     /* trivial cases */
     if ( kitty::is_const0( tt_root ) )
@@ -554,7 +449,7 @@ private:
     for ( const auto& d : subntk.divs )
     {
       /* avoid adding divisors with trivial or pure variable functions */
-      auto const tt = kitty::shrink_to( sim.get_tt( ntk.make_signal( d ) ), signal_leaves.size() );
+      auto const tt = kitty::shrink_to( values[d]/*sim.get_tt( ntk.make_signal( d ) )*/, signal_leaves.size() );
       if ( kitty::is_const0( tt ) || kitty::is_const0( ~tt ) )
         continue;
       bool next = false;
@@ -585,17 +480,18 @@ private:
     refactoring_fn.clear_functions();
     for ( const auto& d : filtered_divs )
     {
-      refactoring_fn.add_function( sim.get_phase( ntk.get_node( d.first ) ) ? !d.first : d.first, d.second );
+      /* normalize d if necessary */
+      if ( !kitty::is_normal( d.second ) )
+        refactoring_fn.add_function( !d.first, ~d.second );
+      else
+        refactoring_fn.add_function( d.first, d.second );
     }
 
     std::optional<signal> result = std::nullopt;
     refactoring_fn( ntk, kitty::shrink_to( tt_root, signal_leaves.size() ), std::begin( signal_leaves ), std::end( signal_leaves ),
-           [&result]( signal const& s ){
-             result = std::make_optional( s );
-           } );
-
-    if ( result && tt_phase )
-      *result = !*result;
+                    [&result]( signal const& s ){
+                      result = std::make_optional( s );
+                    } );
 
     return result;
   }
@@ -610,105 +506,6 @@ private:
     ntk.foreach_fanin( n, [&]( const auto& f ){
         mark_cone_visited( ntk.get_node( f ) );
       });
-  }
-
-  bool collect_divisors( node const& root, std::vector<node> const& leaves, uint32_t required )
-  {
-    divs.clear();
-
-    /* add the leaves of the cuts to the divisors */
-    ntk.incr_trav_id();
-    for ( const auto& l : leaves )
-    {
-      divs.emplace_back( l );
-      ntk.set_visited( l, ntk.trav_id() );
-    }
-
-    /* mark cone visited (without MFFC) */
-    mark_cone_visited( root );
-
-    /* check if the number of divisors is not exceeded */
-    if ( divs.size() - leaves.size() + mffc.size() >= ps.max_divisors - ps.max_pis )
-      return false;
-
-    /* get the number of divisors to collect */
-    int32_t limit = ps.max_divisors - ps.max_pis - ( uint32_t( divs.size() ) + 1 - uint32_t( leaves.size() ) + uint32_t( mffc.size() ) );
-
-    /* explore the fanouts, which are not in the MFFC */
-    int32_t counter = 0;
-    bool quit = false;
-
-    /* NOTE: this is tricky and cannot be converted to a range-based loop */
-    auto size = divs.size();
-    for ( auto i = 0u; i < size; ++i )
-    {
-      auto const d = divs.at( i );
-
-      if ( ntk.fanout_size( d ) > ps.skip_fanout_limit_for_divisors )
-        continue;
-
-      /* if the fanout has all fanins in the set, add it */
-      ntk.foreach_fanout( d, [&]( node const& p ){
-          if ( ntk.visited( p ) == ntk.trav_id() || ntk.level( p ) > required )
-            return true; /* next fanout */
-
-          bool all_fanins_visited = true;
-          ntk.foreach_fanin( p, [&]( const auto& g ){
-              if ( ntk.visited( ntk.get_node( g ) ) != ntk.trav_id() )
-              {
-                all_fanins_visited = false;
-                return false; /* terminate fanin-loop */
-              }
-              return true; /* next fanin */
-            });
-
-          if ( !all_fanins_visited )
-            return true; /* next fanout */
-
-          bool has_root_as_child = false;
-          ntk.foreach_fanin( p, [&]( const auto& g ){
-              if ( ntk.get_node( g ) == root )
-              {
-                has_root_as_child = true;
-                return false; /* terminate fanin-loop */
-              }
-              return true; /* next fanin */
-            });
-
-          if ( has_root_as_child )
-            return true; /* next fanout */
-
-          divs.emplace_back( p );
-          ++size;
-          ntk.set_visited( p, ntk.trav_id() );
-
-          /* quit computing divisors if there are too many of them */
-          if ( ++counter == limit )
-          {
-            quit = true;
-            return false; /* terminate fanout-loop */
-          }
-
-          return true; /* next fanout */
-        });
-
-      if ( quit )
-        break;
-    }
-
-    /* get the number of divisors */
-    num_divs = uint32_t( divs.size() );
-
-    /* add the nodes in the MFFC */
-    for ( const auto& t : mffc )
-    {
-      divs.emplace_back( t );
-    }
-
-    assert( root == divs.at( divs.size()-1u ) );
-    assert( divs.size() - leaves.size() <= ps.max_divisors - ps.max_pis );
-
-    return true;
   }
 
 private:
@@ -798,7 +595,6 @@ private:
 
 private:
   Ntk& ntk;
-  detail::simulator<Ntk, kitty::dynamic_truth_table> sim;
   CutCompFn&& cut_comp_fn;
   RefactoringFn&& refactoring_fn;
 

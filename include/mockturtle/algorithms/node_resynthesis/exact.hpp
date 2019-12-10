@@ -43,6 +43,9 @@
 #include <kitty/print.hpp>
 #include <percy/percy.hpp>
 
+#include <mockturtle/views/cut_view.hpp>
+#include <mockturtle/utils/node_map.hpp>
+#include <mockturtle/algorithms/simulation.hpp>
 #include "../../networks/aig.hpp"
 #include "../../networks/klut.hpp"
 
@@ -308,7 +311,6 @@ public:
   void operator()( Ntk& ntk, kitty::dynamic_truth_table const& function, kitty::dynamic_truth_table const& dont_cares, LeavesIterator begin, LeavesIterator end, Fn&& fn )
   {
     // TODO: special case for small functions (up to 2 variables)?
-
     percy::spec spec;
     if ( !_allow_xor )
     {
@@ -371,7 +373,11 @@ public:
       }
 
       assert( kitty::to_hex( c.simulate()[0u] ) == kitty::to_hex( function ) );
-      
+
+      // std::cout << kitty::to_hex( c.simulate()[0u] ) << ' '
+      //           << kitty::to_hex( function ) << ' '
+      //           << ( ( kitty::to_hex( c.simulate()[0u] ) == kitty::to_hex( function ) ) ? "EQ" : "NEQ" ) << std::endl;
+
       if ( !with_dont_cares && _ps.cache )
       {
         ( *_ps.cache )[function] = c;
@@ -390,17 +396,12 @@ public:
       signals.emplace_back( f.first );
     }
 
-    // for ( const auto& s : signals )
-    // {
-    //   std::cout << ( ntk.is_complemented( s ) ? "!" : "" ) << ntk.get_node( s ) << std::endl;
-    // }
-
     for ( auto i = 0; i < c->get_nr_steps(); ++i )
     {
       auto const c1 = signals[c->get_step( i )[0]];
       auto const c2 = signals[c->get_step( i )[1]];
 
-      // std::cout << "step i = " << i << ' '
+      // std::cout << "step i = " << i << ' ' << c->get_operator( i )._bits[0] << ' '
       //           << ( ntk.is_complemented( c1 ) ? "!" : "" ) << ntk.get_node( c1 ) << ' '
       //           << ( ntk.is_complemented( c2 ) ? "!" : "" ) << ntk.get_node( c2 ) << std::endl;
 
@@ -443,8 +444,15 @@ public:
         leaves.emplace_back( ntk.get_node( *it ) );
       }
 
+      /* extract divisors */
+      std::vector<node> divisors;
+      for ( const auto& f : existing_functions )
+      {
+        divisors.emplace_back( ntk.get_node( f.first ) );
+      }
+
       /* define a view for the chain */
-      cut_view<Ntk> cutv( ntk, leaves, ntk.get_node( output_function ) );
+      cut_view<Ntk> cutv( ntk, leaves, output_function, divisors );
 
       /* define a mapping from signal to signal */
       auto map_signal = [&]( signal const& s ){
@@ -455,28 +463,25 @@ public:
       unordered_node_map<kitty::dynamic_truth_table,cut_view<Ntk>> values( cutv );
       for ( const auto& f : existing_functions )
       {
-        /* TODO: this line will currently fail because the divisors are not in the cut */
-        values[map_signal( f.first )] = f.second;
+        values[f.first] = ntk.is_complemented( f.first ) ? ~f.second : f.second;
       }
 
       default_simulator<kitty::dynamic_truth_table> simulator( leaves.size() );
       simulate_nodes<kitty::dynamic_truth_table,cut_view<Ntk>>( cutv, values, simulator );
 
-      auto to_string = [&]( signal const& s ){
-        return fmt::format( "{}{}", ntk.is_complemented( s ) ? '!' : ' ', ntk.get_node( s ) );
+      auto to_string = [&]( auto const& n, signal const& s ){
+        return fmt::format( "{}{}", n.is_complemented( s ) ? '!' : ' ', n.get_node( s ) );
       };
-
-      for ( const auto& s : signals )
-      {
-        std::cout << to_string( s ) << " maps to "
-                  << to_string( map_signal( s ) ) << " with value "
-                  << kitty::to_hex( values[map_signal( s )] ) << std::endl;
-      }
 
       /* print results */
       std::cout << kitty::to_hex( function ) << std::endl;
-      std::cout << to_string( output_function ) << " maps to " << to_string( map_signal( output_function ) ) << " with value " <<
-        kitty::to_hex( values[map_signal( output_function )] ) << std::endl;
+      std::cout << to_string( ntk, output_function ) << " maps to " << to_string( cutv, map_signal( output_function ) ) << " with value " <<
+        kitty::to_hex( cutv.is_complemented( output_function ) ? ~values[output_function] : values[output_function] ) << std::endl;
+
+      if ( function == ( cutv.is_complemented( output_function ) ? ~values[output_function] : values[output_function] ) )
+      {
+        std::cout << "AIG re-simulation successful" << std::endl;
+      }
     }
 #endif
   }
