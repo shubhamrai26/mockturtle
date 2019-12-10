@@ -122,6 +122,18 @@ public:
     static_assert( has_node_to_index_v<Ntk>, "Ntk does not implement the node_to_index method" );
   }
 
+  /* \brief Returns an iterator pointing to the first element in data. */
+  auto begin() const
+  {
+    return data->begin();
+  }
+
+  /* \brief Returns an iterator referring to the past-the-end element in data */
+  auto end() const
+  {
+    return data->end();
+  }
+  
   /*! \brief Mutable access to value by node. */
   reference operator[]( node const& n )
   {
@@ -231,6 +243,18 @@ public:
   {
   }
 
+  /* \brief Returns an iterator pointing to the first element in data. */
+  auto begin() const
+  {
+    return data->begin();
+  }
+
+  /* \brief Returns an iterator referring to the past-the-end element in data */
+  auto end() const
+  {
+    return data->end();
+  }
+  
   /*! \brief Check if a key is already defined. */
   bool has( node const& n ) const
   {
