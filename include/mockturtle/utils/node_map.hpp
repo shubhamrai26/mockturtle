@@ -254,11 +254,17 @@ public:
   {
     return data->end();
   }
-  
+
   /*! \brief Check if a key is already defined. */
   bool has( node const& n ) const
   {
     return data->find( ntk.node_to_index( n ) ) != data->end();
+  }
+
+  /*! \brief Check if a key is already defined. */
+  bool has( signal const& s ) const
+  {
+    return data->find( ntk.node_to_index( ntk.get_node( s ) ) ) != data->end();
   }
 
   /*! \brief Mutable access to value by node. */
