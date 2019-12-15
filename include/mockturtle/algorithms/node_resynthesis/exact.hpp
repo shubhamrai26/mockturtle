@@ -345,8 +345,18 @@ public:
       auto const tt = f.second;
       if ( tt.num_vars() != function.num_vars() )
       {
-        /* TODO: test if tt can be shrinked to function */
-        continue;
+        /* test if tt can be shrunk to function */
+        auto small_tt = tt;
+        kitty::shrink_to( small_tt, function.num_vars() );
+        if ( small_tt.num_vars() != function.num_vars() )
+        {
+          continue;  /* next divisor */
+        }
+        else
+        {
+          existing_function_signals.emplace_back( f.first );
+          spec.add_function( small_tt );
+        }
       }
       else
       {
