@@ -339,11 +339,20 @@ public:
     }
 
     /* add existing functions */
+    std::vector<signal> existing_function_signals;
     for ( const auto& f : existing_functions )
     {
-      if ( f.second.num_vars() != function.num_vars() )
-        return;
-      spec.add_function( f.second );
+      auto const tt = f.second;
+      if ( tt.num_vars() != function.num_vars() )
+      {
+        /* TODO: test if tt can be shrinked to function */
+        continue;
+      }
+      else
+      {
+        existing_function_signals.emplace_back( f.first );
+        spec.add_function( tt );
+      }
     }
 
     auto c = [&]() -> std::optional<percy::chain> {
@@ -396,9 +405,9 @@ public:
     }
 
     std::vector<signal> signals( begin, end );
-    for ( const auto& f : existing_functions )
+    for ( const auto& f : existing_function_signals )
     {
-      signals.emplace_back( f.first );
+      signals.emplace_back( f );
     }
 
     for ( auto i = 0; i < c->get_nr_steps(); ++i )
