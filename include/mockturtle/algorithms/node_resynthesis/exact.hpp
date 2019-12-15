@@ -341,6 +341,8 @@ public:
     /* add existing functions */
     for ( const auto& f : existing_functions )
     {
+      if ( f.second.num_vars() != function.num_vars() )
+        return;
       spec.add_function( f.second );
     }
 
