@@ -55,7 +55,7 @@ int main()
   dsd_resynthesis<aig_network, decltype( cexact_resyn )> dsd_resyn( cexact_resyn, dsd_ps );
   cached_resynthesis<aig_network, decltype( dsd_resyn )> cdsd_resyn( dsd_resyn, ps.max_pis, "/tmp/cache_dsd.json" );
 
-  for ( auto const& benchmark : epfl_benchmarks( ~experiments::hyp ) )
+  for ( auto const& benchmark : epfl_benchmarks() )
   {
     using aig_view_t = fanout_view2<depth_view<aig_network>>;
 
@@ -81,7 +81,7 @@ int main()
 
     uint32_t const size_after = aig.num_gates();
 
-    auto const cec = ( benchmark == "hyp" ) ? true : abc_cec( aig, benchmark );
+    auto const cec = abc_cec( aig, benchmark );
     exp( benchmark,
          size_before,
          aig.num_gates(),
