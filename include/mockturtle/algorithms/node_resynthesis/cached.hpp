@@ -242,7 +242,7 @@ public:
     fmt::print( "[i] size of blacklist cache = {}\n", _blacklist_cache.size() );
   }
 
-private:
+public:
   void load()
   {
     std::ifstream is( _cache_filename.c_str(), std::ifstream::in );

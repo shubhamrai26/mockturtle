@@ -91,6 +91,9 @@ int main()
          cec );
 
     std::cout << "cec = " << cec << std::endl;
+
+    cexact_resyn.save();
+    cdsd_resyn.save();
   }
 
   exp.save();
