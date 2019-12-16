@@ -41,27 +41,28 @@ int main()
   using namespace experiments;
   using namespace mockturtle;
 
+  using network = xag_network;
   experiment<std::string, uint32_t, uint32_t, uint32_t, double, float, bool> exp( "refactoring", "benchmark", "size_before", "size_after", "diff", "diff[%]", "runtime", "equivalent" );
 
   /* refactoring parameters */
   refactoring_inplace_params ps;
   ps.progress = true;
   ps.max_pis = 10;
-
+  ps.allow_zero_gain = true;
   dsd_resynthesis_params dsd_ps;
-  dsd_ps.dsd_ps.with_xor = false;
+  dsd_ps.dsd_ps.with_xor = true;
   dsd_ps.prime_input_limit = 6u;
-  auto cexact_resyn = cached_exact_xag_resynthesis<aig_network>( "/tmp/cache_exact.json", 10e5, *dsd_ps.prime_input_limit );
-  dsd_resynthesis<aig_network, decltype( cexact_resyn )> dsd_resyn( cexact_resyn, dsd_ps );
-  cached_resynthesis<aig_network, decltype( dsd_resyn )> cdsd_resyn( dsd_resyn, ps.max_pis, "/tmp/cache_dsd.json" );
+  auto cexact_resyn = cached_exact_xag_resynthesis<network>( "cache_exact_xag.json", 10e5, *dsd_ps.prime_input_limit );
+  dsd_resynthesis<network, decltype( cexact_resyn )> dsd_resyn( cexact_resyn, dsd_ps );
+  cached_resynthesis<network, decltype( dsd_resyn )> cdsd_resyn( dsd_resyn, ps.max_pis, "cache_dsd_xag.json" );
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    using aig_view_t = fanout_view2<depth_view<aig_network>>;
+    using aig_view_t = fanout_view2<depth_view<network>>;
 
     fmt::print( "[i] processing {}\n", benchmark );
 
-    aig_network aig;
+    network aig;
     if ( lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( aig ) ) != lorina::return_code::success )
     {
       fmt::print( "[i] could not read benchmark {}\n", benchmark );
@@ -71,7 +72,7 @@ int main()
     uint32_t const size_before = aig.num_gates();
 
     refactoring_inplace_stats st;
-    depth_view<aig_network> depth_aig{aig};
+    depth_view<network> depth_aig{aig};
     aig_view_t aig_view{depth_aig};
 
     /* cut computing function */
