@@ -107,3 +107,34 @@ TEST_CASE( "compute critical path information", "[depth_view]" )
   CHECK( !depth_aig.is_on_critical_path( aig.get_node( f3 ) ) );
   CHECK( depth_aig.is_on_critical_path( aig.get_node( f ) ) );
 }
+
+TEST_CASE( "compute multiplicative depth information for xags", "[depth_view]")
+{
+  xag_network xag;
+
+  const auto n1 = xag.create_pi();
+  const auto n2 = xag.create_pi();
+  const auto n3 = xag.create_pi();
+
+  const auto n4 = xag.create_xor(n1, n2);
+  const auto n5 = xag.create_and(n2, n3);
+  const auto n6 = xag.create_and(n4, n5);
+  const auto n7 = xag.create_xor(n6, n1);
+  const auto n8 = xag.create_and(n7, n2);
+
+  xag.create_po( n8 );
+
+  depth_view depth_xag{xag};
+
+  CHECK( depth_xag.m_depth() == 3 );
+  CHECK( depth_xag.depth() == 4 );
+  CHECK( depth_xag.m_level( xag.get_node(n1) ) == 0 );
+  CHECK( depth_xag.m_level( xag.get_node(n2) ) == 0 );
+  CHECK( depth_xag.m_level( xag.get_node(n3) ) == 0 );
+  CHECK( depth_xag.m_level( xag.get_node(n4) ) == 0 );
+  CHECK( depth_xag.m_level( xag.get_node(n5) ) == 1 );
+  CHECK( depth_xag.m_level( xag.get_node(n6) ) == 2 );
+  CHECK( depth_xag.m_level( xag.get_node(n7) ) == 2 );
+  CHECK( depth_xag.m_level( xag.get_node(n8) ) == 3 );
+
+}

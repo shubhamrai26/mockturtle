@@ -77,6 +77,9 @@ struct resubstitution_params
 
   /*! \brief Use don't cares for optimization. */
   bool use_dont_cares{false};
+
+  /*! \brief Use don't cares for optimization. */
+  bool dont_increase_depth{false};
 };
 
 /*! \brief Statistics for resubstitution.
@@ -612,7 +615,8 @@ private:
 
   std::optional<signal> evaluate( node const& root, std::vector<node> const& leaves )
   {
-    uint32_t const required = std::numeric_limits<uint32_t>::max();
+
+    uint32_t const required = ps.dont_increase_depth ? ntk.level(root) : std::numeric_limits<uint32_t>::max();
 
     last_gain = 0;
 

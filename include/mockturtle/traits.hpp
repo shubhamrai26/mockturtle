@@ -817,6 +817,21 @@ template<class Ntk>
 inline constexpr bool has_depth_v = has_depth<Ntk>::value;
 #pragma endregion
 
+#pragma region has_m_depth
+template<class Ntk, class = void>
+struct has_m_depth : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_m_depth<Ntk, std::void_t<decltype( std::declval<Ntk>().m_depth() )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_m_depth_v = has_m_depth<Ntk>::value;
+#pragma endregion
+
 #pragma region has_level
 template<class Ntk, class = void>
 struct has_level : std::false_type
@@ -830,6 +845,21 @@ struct has_level<Ntk, std::void_t<decltype( std::declval<Ntk>().level( std::decl
 
 template<class Ntk>
 inline constexpr bool has_level_v = has_level<Ntk>::value;
+#pragma endregion
+
+#pragma region has_m_level
+template<class Ntk, class = void>
+struct has_m_level : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_m_level<Ntk, std::void_t<decltype( std::declval<Ntk>().m_level( std::declval<node<Ntk>>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_m_level_v = has_m_level<Ntk>::value;
 #pragma endregion
 
 #pragma region has_update_levels

@@ -34,10 +34,13 @@
 
 #include <cstdint>
 #include <vector>
+#include <type_traits>
+#include <fmt/format.h>
 
 #include "../traits.hpp"
 #include "../utils/node_map.hpp"
 #include "immutable_view.hpp"
+#include <mockturtle/networks/xag.hpp>
 
 namespace mockturtle
 {
@@ -45,6 +48,7 @@ namespace mockturtle
 struct depth_view_params
 {
   bool count_complements{false};
+
 };
 
 /*! \brief Implements `depth` and `level` methods for networks.
@@ -110,7 +114,8 @@ public:
       : Ntk( ntk ),
         _ps( ps ),
         _levels( ntk ),
-        _crit_path( ntk )
+        _crit_path( ntk ),
+        _m_levels( ntk )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_size_v<Ntk>, "Ntk does not implement the size method" );
@@ -122,6 +127,11 @@ public:
     static_assert( has_foreach_fanin_v<Ntk>, "Ntk does not implement the foreach_fanin method" );
 
     update_levels();
+    if constexpr ( std::is_same_v<Ntk, xag_network>)
+    {
+      this -> clear_visited();
+      update_m_levels();
+    }
   }
 
   uint32_t depth() const
@@ -157,6 +167,28 @@ public:
   {
     _levels.resize();
   }
+
+#pragma region Multiplicative depth
+
+  uint32_t m_depth() const
+  {
+    return _m_depth;
+  }
+
+  uint32_t m_level( node const& n ) const
+  {
+    return _m_levels[n];
+  }
+
+
+  void update_m_levels()
+  {
+    _m_levels.reset( 0 );
+
+    compute_m_levels();
+  }
+
+#pragma endregion
 
 private:
   uint32_t compute_levels( node const& n )
@@ -227,6 +259,52 @@ private:
   node_map<uint32_t, Ntk> _levels;
   node_map<uint32_t, Ntk> _crit_path;
   uint32_t _depth;
+
+
+#pragma region Compute Multiplicative Levels
+
+  uint32_t compute_m_levels( node const& n )
+  {
+    if ( this->visited( n ) == this->trav_id() )
+    {
+      return _m_levels[n];
+    }
+    this->set_visited( n, this->trav_id() );
+
+    if ( this->is_constant( n ) || this->is_pi( n ) )
+    {
+      return _m_levels[n] = 0;
+    }
+
+    /* get maximum level of fanins */
+    uint32_t level{0};
+    this->foreach_fanin( n, [&]( auto const& f ) {
+      auto clevel = compute_m_levels( this->get_node( f ) );
+      level = std::max( level, clevel );
+    } );
+
+    if constexpr ( std::is_same_v<Ntk, xag_network>)
+      return (this -> is_and(n)) ? _m_levels[n] = level + 1 : _m_levels[n] = level;
+    else
+      return _m_levels[n] = level + 1;
+    
+  }
+
+  void compute_m_levels()
+  {
+    _m_depth = 0;
+    this->foreach_po( [&]( auto const& f ) {
+      auto clevel = compute_m_levels( this->get_node( f ) );
+      _m_depth = std::max( _m_depth, clevel );
+    } );
+
+  }
+
+  node_map<uint32_t, Ntk> _m_levels;
+  uint32_t _m_depth;
+
+#pragma endregion
+
 };
 
 template<class T>
