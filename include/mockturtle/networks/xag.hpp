@@ -1038,6 +1038,30 @@ public:
   }
 
   template<typename Iterator>
+  iterates_over_t<Iterator, uint64_t>
+  compute( node const& n, Iterator begin, Iterator end ) const
+  {
+    (void)end;
+
+    assert( n != 0 && !is_ci( n ) );
+
+    auto const& c1 = _storage->nodes[n].children[0];
+    auto const& c2 = _storage->nodes[n].children[1];
+
+    auto v1 = *begin++;
+    auto v2 = *begin++;
+
+    if ( c1.index < c2.index )
+    {
+      return ( v1 ^ c1.weight ) & ( v2 ^ c2.weight );
+    }
+    else
+    {
+      return ( v1 ^ c1.weight ) ^ ( v2 ^ c2.weight );
+    }
+  }
+
+  template<typename Iterator>
   iterates_over_truth_table_t<Iterator>
   compute( node const& n, Iterator begin, Iterator end ) const
   {

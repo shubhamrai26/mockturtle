@@ -33,6 +33,7 @@
 #pragma once
 
 #include <cstdint>
+#include <random>
 #include <vector>
 
 #include "../traits.hpp"
@@ -92,6 +93,34 @@ public:
 
 private:
   uint64_t word;
+};
+
+template<class WordType = uint64_t>
+class random_word_simulator
+{
+public:
+  random_word_simulator( std::default_random_engine::result_type seed = std::default_random_engine::default_seed )
+    : gen( seed )
+  {
+  }
+
+  WordType compute_constant( bool value ) const
+  {
+    WordType zero{};
+    return value ? ~zero : zero;
+  }
+
+  WordType compute_pi( uint32_t index ) const
+  {
+    (void)index;
+    return dist( gen );
+  }
+
+  WordType compute_not( WordType value ) const { return ~value; }
+
+  private:
+    mutable std::default_random_engine gen;
+    mutable std::uniform_int_distribution<WordType> dist{{}, std::numeric_limits<WordType>::max()};
 };
 
 /*! \brief Simulates truth tables.
