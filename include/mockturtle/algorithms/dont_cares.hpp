@@ -156,6 +156,17 @@ struct satisfiability_dont_cares_checker
     return solver_.solve( &assumptions[0], &assumptions[0] + assumptions.size(), 0 ) == percy::failure;
   }
 
+  bool is_dont_care( node<Ntk> const& n, uint32_t assignment, uint32_t num_vars )
+  {
+    assert( false );
+  }
+
+  bool is_constant( node<Ntk> const& n, bool value )
+  {
+    pabc::lit lit = lit_not_cond( literals_[n], value );
+    return solver_.solve( &lit, &lit + 1, 0 ) == percy::failure;
+  }
+
 private:
   void init()
   {
@@ -227,6 +238,41 @@ struct mine_dont_cares_impl
     } );
   }
 
+  void mine_satisfiability_dont_cares() const
+  {
+    satisfiability_dont_cares_checker<Ntk> checker( ntk_ );
+
+    random_word_simulator<uint64_t> sim( 655321u );
+    const auto sim_values = simulate_nodes<uint64_t>( ntk_, sim );
+
+    ntk_.foreach_gate( [&]( auto const& n ) {
+      fmt::print( "node {} has sim value {}\n", n, sim_values[n] );
+
+      uint64_t fanin_pattern_local{0u};
+      std::vector<uint64_t> fanin_pattern_global;
+      ntk_.foreach_fanin( n, [&]( auto const& f ) {
+        const auto p = sim_values[f];
+        fanin_pattern_global.push_back( ntk_.is_complemented( f ) ? sim.compute_not( p ) : p );
+      } );
+      for ( auto i = 0u; i < 64u; ++i )
+      {
+        uint64_t p{0u};
+        for ( auto j = 0u; j < ntk_.fanin_size( n ); ++j )
+        {
+          p |= ( ( fanin_pattern_global[j] >> i ) & 1 ) << j;
+        }
+        fanin_pattern_local |= ( 1u << p );
+      }
+      fmt::print( "  candidates = {}\n", ~fanin_pattern_local & ( ( 1 << ntk_.fanin_size( n ) ) - 1 ) );
+
+      //if ( sim_values[n] == 0u || sim_values[n] == 1u )
+      //{
+      //  fmt::print( "is constant 0? {}\n", checker.is_constant( n, false ) );
+      //  fmt::print( "is constant 1? {}\n", checker.is_constant( n, true ) );
+      //}
+    });
+  }
+
 private:
   Ntk const& ntk_;
 };
@@ -236,7 +282,7 @@ private:
 template<class Ntk>
 void mine_dont_cares( Ntk const& ntk )
 {
-  detail::mine_dont_cares_impl<Ntk>( ntk ).run();
+  detail::mine_dont_cares_impl<Ntk>( ntk ).mine_satisfiability_dont_cares();
 }
 
 } /* namespace mockturtle */
