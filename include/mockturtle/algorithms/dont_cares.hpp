@@ -170,4 +170,73 @@ private:
   node_map<uint32_t, Ntk> literals_;
 };
 
+namespace detail
+{
+
+template<class Ntk>
+node_map<std::vector<node<Ntk>>, Ntk> cones_of_influence( Ntk const& ntk )
+{
+  node_map<std::vector<node<Ntk>>, Ntk> cois( ntk );
+
+  topo_view<Ntk>{ntk}.foreach_node( [&]( auto const& n ) {
+    std::vector<node<Ntk>> cone;
+    ntk.foreach_fanin( n, [&]( auto const& f ) {
+      std::vector<node<Ntk>> tmp, child_cone = cois[f];
+
+      std::merge( cone.begin(), cone.end(), child_cone.begin(), child_cone.end(), std::back_inserter( tmp ) );
+      tmp.erase( std::unique( tmp.begin(), tmp.end() ), tmp.end() );
+      cone = tmp;
+    } );
+    cone.insert( std::lower_bound( cone.begin(), cone.end(), n ), n );
+    cois[n] = cone;
+  } );
+
+  return cois;
+}
+
+template<class Ntk>
+struct mine_dont_cares_impl
+{
+  mine_dont_cares_impl( Ntk const& ntk )
+      : ntk_( ntk )
+  {
+  }
+
+  void run() const
+  {
+    const auto cois = cones_of_influence( ntk_ );
+    node_map<std::vector<uint32_t>, Ntk> po_influence( ntk_ );
+
+    /* output cones */
+    for ( auto i = 0u; i < ntk_.num_pos(); ++i )
+    {
+      for ( auto const& n : cois[ntk_.po_at( i )] )
+      {
+        po_influence[n].push_back( i );
+      }
+    }
+
+    ntk_.foreach_gate( [&]( auto const& n ) {
+      std::vector<node<Ntk>> pis;
+      std::vector<uint32_t> pi_indexes;
+
+      std::copy_if( cois[n].begin(), cois[n].end(), std::back_inserter( pis ), [&]( auto const& x ) { return ntk_.is_pi( x ); } );
+      std::transform( pis.begin(), pis.end(), std::back_inserter( pi_indexes ), [&]( auto const& x ) { return ntk_.pi_index( x ); } );
+
+      fmt::print( "[i] size of {} COI = {} {}\n", n, pi_indexes.size() );
+    } );
+  }
+
+private:
+  Ntk const& ntk_;
+};
+
+} // namespace detail
+
+template<class Ntk>
+void mine_dont_cares( Ntk const& ntk )
+{
+  detail::mine_dont_cares_impl<Ntk>( ntk ).run();
+}
+
 } /* namespace mockturtle */
