@@ -38,6 +38,7 @@
 #include "../algorithms/cnf.hpp"
 #include "../algorithms/reconv_cut.hpp"
 #include "../algorithms/simulation.hpp"
+#include "../generators/modular_arithmetic.hpp"
 #include "../traits.hpp"
 #include "../utils/node_map.hpp"
 #include "../views/fanout_view.hpp"
@@ -158,7 +159,9 @@ struct satisfiability_dont_cares_checker
 
   bool is_dont_care( node<Ntk> const& n, uint32_t assignment, uint32_t num_vars )
   {
-    assert( false );
+    std::vector<bool> vec( num_vars );
+    bool_vector_from_dec( vec, assignment );
+    return is_dont_care( n, vec );
   }
 
   bool is_constant( node<Ntk> const& n, bool value )
@@ -254,16 +257,28 @@ struct mine_dont_cares_impl
         const auto p = sim_values[f];
         fanin_pattern_global.push_back( ntk_.is_complemented( f ) ? sim.compute_not( p ) : p );
       } );
+      uint32_t num_vars = ntk_.fanin_size( n );
       for ( auto i = 0u; i < 64u; ++i )
       {
         uint64_t p{0u};
-        for ( auto j = 0u; j < ntk_.fanin_size( n ); ++j )
+        for ( auto j = 0u; j < num_vars; ++j )
         {
           p |= ( ( fanin_pattern_global[j] >> i ) & 1 ) << j;
         }
         fanin_pattern_local |= ( 1u << p );
       }
-      fmt::print( "  candidates = {}\n", ~fanin_pattern_local & ( ( 1 << ntk_.fanin_size( n ) ) - 1 ) );
+      uint32_t candidates = ~fanin_pattern_local & ( ( 1 << num_vars ) - 1 );
+      if ( candidates )
+      {
+        fmt::print( "  candidates = {}\n", candidates );
+        for ( auto i = 0u; i < ( 1u << num_vars ); ++i )
+        {
+          if ( ( ( candidates >> i ) & 1 ) && checker.is_dont_care( n, i, num_vars ) )
+          {
+            fmt::print( "  SDC for assignment {}\n", i );
+          }
+        }
+      }
 
       //if ( sim_values[n] == 0u || sim_values[n] == 1u )
       //{
