@@ -295,8 +295,6 @@ void synthesize_all_npn_classes( Fn&& fn, int num_inputs, std::string ofname = "
       uint32_t encoded_number = uint32_t( xmg.get_node( fi ) );
       encoded_number <<= 1;
       encoded_number = encoded_number ^ xmg.is_complemented( fi );
-      //encoded_number = encoded_number  ^ (encoded_number | xmg.is_complemented(fi));
-      // std::cout << std::hex << xmg.get_node(fi) << " " << xmg.is_complemented(fi) << std::endl;
       if ( index == 0u )
       {
         encoded_number <<= 1;
@@ -309,7 +307,4 @@ void synthesize_all_npn_classes( Fn&& fn, int num_inputs, std::string ofname = "
   std::cout << std::endl;
   tt_outf << std::endl;
   tt_outf.close();
-
-#if 0
-#endif
 }
