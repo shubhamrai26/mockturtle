@@ -17,6 +17,7 @@
 #include <mockturtle/algorithms/node_resynthesis/exact.hpp>
 #include <mockturtle/algorithms/node_resynthesis/mig_npn.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xag_npn.hpp>
+#include <mockturtle/algorithms/node_resynthesis/xmg3_npn.hpp>
 #include <mockturtle/algorithms/refactoring.hpp>
 #include <mockturtle/algorithms/resubstitution.hpp>
 #include <mockturtle/algorithms/satlut_mapping.hpp>
@@ -303,7 +304,7 @@ TEST_CASE( "Test quality improvement of cut rewriting with XAG NPN4 resynthesis"
   CHECK( v == std::vector<uint32_t>{{0, 31, 152, 50, 176, 79, 215, 134, 411, 869, 293}} );
 }
 
-TEST_CASE( "Test quality improvement for XMG3 Resubstitution", "[quality]" )
+TEST_CASE( "Test quality improvement for XMG3 resubstitution", "[quality]" )
 {
 
   const auto v = foreach_benchmark<xmg_network>( [&]( auto& ntk, auto ) {
@@ -318,6 +319,23 @@ TEST_CASE( "Test quality improvement for XMG3 Resubstitution", "[quality]" )
   } );
 
   CHECK( v == std::vector<uint32_t>{{0, 38, 46, 22, 62, 72, 76, 75, 265, 888, 189}} );
+}
+
+TEST_CASE( "Test quality improvement for XMG3 rewriting with 4-input NPN database", "[quality]" )
+{
+
+  const auto v = foreach_benchmark<xmg_network>( [&]( auto& ntk, auto ) {
+    const auto before = ntk.num_gates();
+    xmg3_npn_resynthesis<xmg_network> resyn;
+    cut_rewriting_params ps;
+    ps.cut_enumeration_ps.cut_size = 4;
+    cut_rewriting( ntk, resyn, ps );
+    ntk = cleanup_dangling( ntk );
+    //std::cout << "before - ntk.num_gates " << (before - ntk.num_gates()) << std::endl;
+    return before - ntk.num_gates();
+  } );
+
+  CHECK( v == std::vector<uint32_t>{{0, 27, 224, 70, 272, 149, 283, 189, 651, 464, 499}} );
 }
 
 #endif
