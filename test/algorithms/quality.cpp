@@ -316,6 +316,7 @@ TEST_CASE( "Test quality improvement for XMG3 Resubstitution", "[quality]" )
     ntk = cleanup_dangling( ntk );
     return before - ntk.num_gates();
   } );
+
   CHECK( v == std::vector<uint32_t>{{0, 38, 46, 22, 62, 72, 76, 75, 265, 888, 189}} );
 }
 
