@@ -248,7 +248,6 @@ void synthesize_all_npn_classes( Fn&& fn, int num_inputs, std::string ofname = "
     all_classes.push_back( it->first );
 
   std::string db_file_name = "db_npn_" + std::to_string( num_inputs ) + ".txt";
-  std::cout << "db_file_name " << db_file_name << std::endl;
   std::ofstream tt_outf( db_file_name );
   std::ofstream outf( ofname );
   outf << "class,#functions,#gates,gate-inverter decomposition,synthesis time" << std::endl;
