@@ -43,13 +43,13 @@ int main()
     using namespace experiments;
     using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, float, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, bool> exp( "xmg_resubstitution", "benchmark", "size_before", "size_after", "runtime", "total_xor3", "actual_xor3", "actual_xor2", "total_maj", "actual_maj", "remaining_maj","equivalent" );
+  experiment<std::string, uint32_t, uint32_t, float, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, bool> exp( "xmg_resubstitution", "benchmark", "size_before", "size_after", "runtime", "total_xor3", "actual_xor3", "actual_xor2", "total_maj", "actual_maj", "remaining_maj"," iteration #", "improvement", "equivalent" );
 
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    //if (benchmark != "adder") 
-    //    continue;
+    if (benchmark != "div") 
+        continue;
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
@@ -63,19 +63,27 @@ int main()
     ps.max_pis = 8u;
     ps.max_inserts = 1u;  // Discuss with Heinz once.
 
-    const uint32_t size_before = xmg.num_gates();
-    xmg_resubstitution(xmg, ps, &st);
+    uint32_t size_before; 
+    uint32_t num_iters = 0u;
+    do 
+    {
+        num_iters++;
+        size_before = xmg.num_gates();
+        xmg_resubstitution(xmg, ps, &st);
 
-    xmg = cleanup_dangling( xmg );
-    
-    num_gate_profile(xmg,xmg_ps);
+        xmg = cleanup_dangling( xmg );
 
-    // For Rewriting 
-    // Check for ABC equivalence
-    const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-    
+        num_gate_profile(xmg,xmg_ps);
+
+        // For Rewriting 
+        // Check for ABC equivalence
+        const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
+        auto improvements = size_before - xmg.num_gates();
+        std::cout <<  "improvement " << improvements << "at iteration # " << num_iters << std::endl;
+        exp( benchmark, size_before, xmg.num_gates(), to_seconds( st.time_total ), xmg_ps.total_xor3, xmg_ps.actual_xor3, xmg_ps.actual_xor2, xmg_ps.total_maj, xmg_ps.actual_maj, xmg_ps.remaining_maj, num_iters, improvements, cec );
+    } while ((size_before - xmg.num_gates()) > 0);
+
     // Figure out how to integrate the xmg_cost.hpp as well  
-    exp( benchmark, size_before, xmg.num_gates(), to_seconds( st.time_total ), xmg_ps.total_xor3, xmg_ps.actual_xor3, xmg_ps.actual_xor2, xmg_ps.total_maj, xmg_ps.actual_maj, xmg_ps.remaining_maj, cec );
     
   }
   
