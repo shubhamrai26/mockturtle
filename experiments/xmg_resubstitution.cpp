@@ -47,13 +47,13 @@ int main()
     using namespace mockturtle;
 
   experiment<std::string, uint32_t, float, float,  uint32_t, uint32_t, uint32_t, uint32_t, float, float, bool> exp( "xmg_resub", 
-            "benchmark", "iter.", "rel_imp", "runtime", "bef_xor3", "bef_maj", "aft_xor3", "aft_maj", "xor3_imp", "maj_imp", "equivalent" );
+            "benchmark", "iter.", "rel_imp", "runtime", "xor3", "xor3'", "maj", "maj'", "xor3_imp", "maj_imp", "equivalent" );
 
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    if (benchmark != "adder") 
-        continue;
+    //if (benchmark != "adder") 
+    //    continue;
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
@@ -66,10 +66,7 @@ int main()
     resubstitution_stats st;
     ps.max_pis = 8u;
     ps.max_inserts = 1u;  // Discuss with Heinz once.
-
-    int x = -5;
-    int a = std::abs(x);
-    std::cout << "a " << a << std::endl;
+    ps.progress = true;
 
     uint32_t size_before; 
     uint32_t num_iters = 0u;
@@ -99,7 +96,6 @@ int main()
       else 
       {
         int diff = size_before - xmg.num_gates();
-        //improvements = 100 * (std::abs(diff)/size_before );
         improvements = 100 * (double(std::abs(diff))/size_before);
         std::cout << " improvements " << improvements <<  std::endl;
       }
@@ -108,7 +104,7 @@ int main()
       else 
       {
         int diff = xmg_ps.actual_xor3 - xmg_ps2.actual_xor3;
-        rel_xor3 = diff/xmg_ps.actual_xor3; 
+        rel_xor3 = 100 * (double(std::abs(diff))/xmg_ps.actual_xor3); 
         std::cout << "rel_xor " << rel_xor3 <<  std::endl;
       }
       if (xmg_ps.actual_maj == 0u )
@@ -116,13 +112,13 @@ int main()
       else
       {
         int diff = xmg_ps.actual_maj - xmg_ps2.actual_maj; 
-        rel_maj  = std::abs(diff) / xmg_ps.actual_maj ; 
+        rel_maj  = 100 * (double(std::abs(diff)) / xmg_ps.actual_maj) ; 
         std::cout << "rel_maj " << rel_maj <<  std::endl;
       }
 
       std::cout <<  "For benchmark "<< benchmark << "improvement " << improvements << "at iteration # " << num_iters << std::endl;
         
-      exp( benchmark, num_iters, improvements, to_seconds( st.time_total ), xmg_ps.actual_xor3, xmg_ps.actual_maj, xmg_ps2.actual_xor3, xmg_ps2.actual_maj, rel_xor3, rel_maj, cec );
+      exp( benchmark, num_iters, improvements, to_seconds( st.time_total ), xmg_ps.actual_xor3, xmg_ps2.actual_xor3,xmg_ps.actual_maj, xmg_ps2.actual_maj, rel_xor3, rel_maj, cec );
 
     } while ((size_before - xmg.num_gates()) > 0);
 
