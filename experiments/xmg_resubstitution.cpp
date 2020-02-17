@@ -24,7 +24,10 @@
  */
 
 #include <string>
+#include <iostream>
 #include <vector>
+#include <cstdlib>
+#include <cmath>
 
 #include <fmt/format.h>
 #include <lorina/aiger.hpp>
@@ -43,19 +46,20 @@ int main()
     using namespace experiments;
     using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, float, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, bool> exp( "xmg_resubstitution", "benchmark", "size_before", "size_after", "runtime", "total_xor3", "actual_xor3", "actual_xor2", "total_maj", "actual_maj", "remaining_maj"," iteration #", "improvement", "equivalent" );
+  experiment<std::string, uint32_t, float, float,  uint32_t, uint32_t, uint32_t, uint32_t, float, float, bool> exp( "xmg_resub", 
+            "benchmark", "iter.", "rel_imp", "runtime", "bef_xor3", "bef_maj", "aft_xor3", "aft_maj", "xor3_imp", "maj_imp", "equivalent" );
 
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    if (benchmark != "div") 
+    if (benchmark != "adder") 
         continue;
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
 
     // Preparing for the xmg_cost calculation 
-    xmg_cost_params xmg_ps;
+    xmg_cost_params xmg_ps,xmg_ps2;
 
     // For XMG Resubstitution
     resubstitution_params ps;
@@ -63,24 +67,63 @@ int main()
     ps.max_pis = 8u;
     ps.max_inserts = 1u;  // Discuss with Heinz once.
 
+    int x = -5;
+    int a = std::abs(x);
+    std::cout << "a " << a << std::endl;
+
     uint32_t size_before; 
     uint32_t num_iters = 0u;
+    float improvements = 0;
+    float rel_xor3 = 0;
+    float rel_maj = 0;
+
     do 
     {
-        num_iters++;
-        size_before = xmg.num_gates();
-        xmg_resubstitution(xmg, ps, &st);
+	    xmg_ps.reset();
+      xmg_ps2.reset();
+      num_iters++;
+      size_before = xmg.num_gates();
+      
+      num_gate_profile(xmg,xmg_ps);
+      xmg_resubstitution(xmg, ps, &st);
 
-        xmg = cleanup_dangling( xmg );
+      xmg = cleanup_dangling( xmg );
 
-        num_gate_profile(xmg,xmg_ps);
+      num_gate_profile(xmg,xmg_ps2);
 
-        // For Rewriting 
-        // Check for ABC equivalence
-        const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-        auto improvements = size_before - xmg.num_gates();
-        std::cout <<  "improvement " << improvements << "at iteration # " << num_iters << std::endl;
-        exp( benchmark, size_before, xmg.num_gates(), to_seconds( st.time_total ), xmg_ps.total_xor3, xmg_ps.actual_xor3, xmg_ps.actual_xor2, xmg_ps.total_maj, xmg_ps.actual_maj, xmg_ps.remaining_maj, num_iters, improvements, cec );
+      const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
+      std::cout << "size_before " <<  size_before << std::endl;
+      std::cout << "xmg num_gates " <<  xmg.num_gates() << std::endl;
+      if (size_before == 0u)
+        improvements = 0;
+      else 
+      {
+        int diff = size_before - xmg.num_gates();
+        //improvements = 100 * (std::abs(diff)/size_before );
+        improvements = 100 * (double(std::abs(diff))/size_before);
+        std::cout << " improvements " << improvements <<  std::endl;
+      }
+      if(xmg_ps.actual_xor3 == 0u )
+        rel_xor3 = 0;
+      else 
+      {
+        int diff = xmg_ps.actual_xor3 - xmg_ps2.actual_xor3;
+        rel_xor3 = diff/xmg_ps.actual_xor3; 
+        std::cout << "rel_xor " << rel_xor3 <<  std::endl;
+      }
+      if (xmg_ps.actual_maj == 0u )
+        rel_maj = 0;
+      else
+      {
+        int diff = xmg_ps.actual_maj - xmg_ps2.actual_maj; 
+        rel_maj  = std::abs(diff) / xmg_ps.actual_maj ; 
+        std::cout << "rel_maj " << rel_maj <<  std::endl;
+      }
+
+      std::cout <<  "For benchmark "<< benchmark << "improvement " << improvements << "at iteration # " << num_iters << std::endl;
+        
+      exp( benchmark, num_iters, improvements, to_seconds( st.time_total ), xmg_ps.actual_xor3, xmg_ps.actual_maj, xmg_ps2.actual_xor3, xmg_ps2.actual_maj, rel_xor3, rel_maj, cec );
+
     } while ((size_before - xmg.num_gates()) > 0);
 
     // Figure out how to integrate the xmg_cost.hpp as well  
