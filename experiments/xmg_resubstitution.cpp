@@ -52,12 +52,13 @@ int main()
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    //if (benchmark != "adder") 
-    //    continue;
+    if (benchmark != "adder") 
+        continue;
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
 
+    int area_before = abc_map(xmg);
     // Preparing for the xmg_cost calculation 
     xmg_cost_params xmg_ps,xmg_ps2;
 
@@ -120,7 +121,12 @@ int main()
         
       exp( benchmark, num_iters, improvements, to_seconds( st.time_total ), xmg_ps.actual_xor3, xmg_ps2.actual_xor3,xmg_ps.actual_maj, xmg_ps2.actual_maj, rel_xor3, rel_maj, cec );
 
+      std::cout << "Trying out Mapping" << std::endl;
+
     } while ((size_before - xmg.num_gates()) > 0);
+    
+    int area_after = abc_map(xmg);
+    std:: cout << "improvement in area after mapping "  << (area_after - area_before) << std::endl;
 
     // Figure out how to integrate the xmg_cost.hpp as well  
     

@@ -51,13 +51,16 @@ int main()
   
   experiment<std::string, uint32_t, float, float, float, float, uint32_t, uint32_t, uint32_t, uint32_t, float, float, bool> exp( "xmg_resubstituion", "benchmark", "iter.", "imp_rw", "imp_rs", "time_rw", "time_rs", "xor3", "xor3'", "maj", "maj'", "xor3_imp", "maj_imp", "equivalent" );
 
+  experiment<std::string, float> exp2 ( "xmg_resubstituion", "benchmark", "area_imp" );
   for ( auto const& benchmark : epfl_benchmarks() )
   {
-    //if (benchmark != "adder" && benchmark != "div") 
-    //    continue;
+    if (benchmark != "adder" && benchmark != "div") 
+        continue;
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
+
+    float area_before = abc_map(xmg);
 
     xmg_cost_params xmg_ps, xmg_ps2;
     uint32_t size_before_resub;
@@ -146,10 +149,13 @@ int main()
     //} while ( (size_before_cr - xmg.num_gates()) > 0 );
     } while ( improv_after_resub > 0.5 );
 
-    mockturtle::write_verilog(xmg,benchmark+".v");
+    float area_after = abc_map(xmg);
+    exp2 ( benchmark, (area_before - area_after) ) ;
   }
   
   exp.save();
   exp.table();
+  exp2.save();
+  exp2.table();
   return 0;
 }
