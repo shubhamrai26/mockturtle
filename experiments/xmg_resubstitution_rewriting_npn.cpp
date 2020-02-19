@@ -143,7 +143,8 @@ int main()
         //
       exp( benchmark, num_iters, improv_after_rewrite, improv_after_resub, to_seconds( cr_st.time_total ), to_seconds( resub_st.time_total ), xmg_ps.actual_xor3, xmg_ps2.actual_xor3, xmg_ps.actual_maj, xmg_ps2.actual_maj, rel_xor3, rel_maj, cec );
 
-    } while ( (size_before_cr - xmg.num_gates()) > 0 );
+    //} while ( (size_before_cr - xmg.num_gates()) > 0 );
+    } while ( improv_after_resub > 0.5 );
 
     mockturtle::write_verilog(xmg,benchmark+".v");
   }
