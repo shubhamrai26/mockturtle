@@ -58,7 +58,9 @@ int main()
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
 
-    int area_before = abc_map(xmg);
+    std::string const genlib_path = "/Users/lsi1-guest/EPFL_Work/abc/std_libs/date_lib_count_tt_2.genlib";
+    float area_before = abc_map( xmg, genlib_path );
+
     // Preparing for the xmg_cost calculation 
     xmg_cost_params xmg_ps,xmg_ps2;
 
@@ -125,7 +127,7 @@ int main()
 
     } while ((size_before - xmg.num_gates()) > 0);
     
-    int area_after = abc_map(xmg);
+    float area_after = abc_map( xmg, genlib_path );
     std:: cout << "improvement in area after mapping "  << (area_after - area_before) << std::endl;
 
     // Figure out how to integrate the xmg_cost.hpp as well  

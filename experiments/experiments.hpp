@@ -46,7 +46,7 @@
 #include <mockturtle/io/write_bench.hpp>
 #include <nlohmann/json.hpp>
 
-#define genlib_path "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_2.genlib"
+//#define genlib_path "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_2.genlib"
 namespace experiments
 {
 
@@ -443,7 +443,7 @@ bool abc_cec( Ntk const& ntk, std::string const& benchmark )
   return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
 }
 template <class Ntk>
-float abc_map (Ntk const& ntk )
+float abc_map (Ntk const& ntk, std::string const& genlib_path )
 {
   mockturtle::write_bench( ntk, "/tmp/test.bench" );
   std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;map; print_gates\"", genlib_path);
@@ -460,10 +460,14 @@ float abc_map (Ntk const& ntk )
     result += buffer.data();
   }
 
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
   std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
   uint32_t sp = total_str.find( "Area" );
-  uint32_t lp = total_str.find( "100" );
-  std::string str1 = total_str.substr ( (sp+6), (lp -sp - 6) ); // 6 as to ignore "=" 
+  uint32_t lp = total_str.find( "100 \%" );
+  //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+  std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+  //std::cout << " value of str1 = " << str1 << std::endl;
 
   return std::stof( str1 ); 
 }
