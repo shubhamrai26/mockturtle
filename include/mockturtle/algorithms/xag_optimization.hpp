@@ -71,14 +71,15 @@ public:
       old2new[n] = dest.create_pi();
       lfi[n].emplace_back( n );
     } );
-    topo_view{xag}.foreach_node( [&]( auto const& n ) {
+    topo_view topo{xag};
+    topo.foreach_node( [&]( auto const& n ) {
       if ( xag.is_constant( n ) || xag.is_pi( n ) )
         return;
 
       if ( xag.is_xor( n ) )
       {
-        std::array<xag_network::signal*, 2> children;
-        std::array<std::vector<xag_network::node>*, 2> clfi;
+        std::array<xag_network::signal*, 2> children{};
+        std::array<std::vector<xag_network::node>*, 2> clfi{};
         xag.foreach_fanin( n, [&]( auto const& f, auto i ) {
           children[i] = &old2new[f];
           clfi[i] = &lfi[f];
@@ -184,7 +185,7 @@ xag_network xag_dont_cares_optimization( xag_network const& xag )
     if ( xag.is_constant( n ) || xag.is_pi( n ) )
       return;
 
-    std::array<xag_network::signal, 2> fanin;
+    std::array<xag_network::signal, 2> fanin{};
     xag.foreach_fanin( n, [&]( auto const& f, auto i ) {
       fanin[i] = old_to_new[f] ^ xag.is_complemented( f );
     } );
