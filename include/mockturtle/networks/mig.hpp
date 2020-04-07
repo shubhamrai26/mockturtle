@@ -37,7 +37,6 @@
 #include <stack>
 #include <string>
 
-#include <ez/direct_iterator.hpp>
 #include <kitty/dynamic_truth_table.hpp>
 #include <kitty/operators.hpp>
 
@@ -661,6 +660,11 @@ public:
     return static_cast<uint32_t>( _storage->outputs.size() );
   }
 
+  uint32_t num_latches() const
+  {
+      return _storage->data.latches.size();
+  }
+
   auto num_pis() const
   {
     return _storage->data.num_pis;
@@ -734,6 +738,24 @@ public:
   }
 
   bool is_xor3( node const& n ) const
+  {
+    (void)n;
+    return false;
+  }
+
+  bool is_nary_and( node const& n ) const
+  {
+    (void)n;
+    return false;
+  }
+
+  bool is_nary_or( node const& n ) const
+  {
+    (void)n;
+    return false;
+  }
+
+  bool is_nary_xor( node const& n ) const
   {
     (void)n;
     return false;
@@ -886,7 +908,7 @@ public:
 
   node ri_to_ro( signal const& s ) const
   {
-    return *( _storage->inputs.begin() + ri_index( s ) );
+    return *( _storage->inputs.begin() + _storage->data.num_pis + ri_index( s ) );
   }
 #pragma endregion
 
@@ -894,9 +916,9 @@ public:
   template<typename Fn>
   void foreach_node( Fn&& fn ) const
   {
+    auto r = range<uint64_t>( _storage->nodes.size() );
     detail::foreach_element_if(
-        ez::make_direct_iterator<uint64_t>( 0 ),
-        ez::make_direct_iterator<uint64_t>( _storage->nodes.size() ),
+        r.begin(), r.end(),
         [this]( auto n ) { return !is_dead( n ); },
         fn );
   }
@@ -985,9 +1007,9 @@ public:
   template<typename Fn>
   void foreach_gate( Fn&& fn ) const
   {
+    auto r = range<uint64_t>( 1u, _storage->nodes.size() ); // start from 1 to avoid constant
     detail::foreach_element_if(
-        ez::make_direct_iterator<uint64_t>( 1 ), // start from 1 to avoid constant
-        ez::make_direct_iterator<uint64_t>( _storage->nodes.size() ),
+        r.begin(), r.end(),
         [this]( auto n ) { return !is_ci( n ) && !is_dead( n ); },
         fn );
   }
