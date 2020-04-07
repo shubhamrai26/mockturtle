@@ -120,7 +120,7 @@ private:
         return;
       topo_view topo{ntk, po};
       topo.foreach_node( [this]( auto n ) {
-        reduce_depth( n );
+        //reduce_depth( n );
         reduce_depth_xor_associativity( n );
         reduce_depth_xor_complementary_associativity( n );
         return true;
