@@ -484,7 +484,7 @@ template <class Ntk>
 lut_info abc_lut_mapper_if( Ntk const& ntk )
 {
   mockturtle::write_blif( ntk, "/tmp/test.blif" );
-  std::string command = fmt::format( "abc -q \"read /tmp/test.blif; if -K 6 -a; print_stats\"" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.blif; if -K 6 ; print_stats\"" );
 
   lut_info ldata;
   std::array<char, 1024> buffer;
