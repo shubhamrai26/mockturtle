@@ -70,7 +70,7 @@ struct xmg_cost_params
 
   void report() const
   {
-    fmt::print( "#total_xor3 = {} / #total_maj = {} / #xor2 = {} / #xor3 = {} / #actual_maj = {} / #remaining_maj = {} \n", total_xor3, total_maj, actual_xor2, actual_xor3, actual_maj, remaining_maj );
+    fmt::print( "#total_xor3 = {} (xor3) + {} (xor2)  \n#total_maj = {} (maj3) + {} (maj2)  \n", total_xor3, actual_xor3, actual_xor2, total_maj, actual_maj, remaining_maj );
   }
   
   void reset() 

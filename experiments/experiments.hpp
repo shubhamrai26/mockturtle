@@ -46,7 +46,6 @@
 #include <mockturtle/io/write_bench.hpp>
 #include <nlohmann/json.hpp>
 
-//#define genlib_path "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_2.genlib"
 namespace experiments
 {
 
@@ -404,21 +403,12 @@ std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
   return result;
 }
 
-std::string benchmark_path( std::string const& benchmark_name )
+std::string benchmark_path( std::string const& benchmark_name, std::string const& path_type = "", std::string const& filetype = "aig" ) 
 {
 #ifndef EXPERIMENTS_PATH
   return fmt::format( "{}.aig", benchmark_name );
 #else
-  return fmt::format( "{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark_name );
-#endif
-}
-
-std::string abc_path( std::string const& benchmark_name )
-{
-#ifndef EXPERIMENTS_PATH
-  return fmt::format( "{}.aig", benchmark_name );
-#else
-  return fmt::format( "{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark_name );
+  return fmt::format( "{}benchmarks{}/{}.{}", EXPERIMENTS_PATH, path_type, benchmark_name, filetype );
 #endif
 }
 
@@ -470,6 +460,27 @@ float abc_map (Ntk const& ntk, std::string const& genlib_path )
   //std::cout << " value of str1 = " << str1 << std::endl;
 
   return std::stof( str1 ); 
+}
+
+void abc_lut_reader ( std::string const& benchmark )
+{
+    //mockturtle::write_bench( ntk, "/tmp/test.bench" );
+     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped ===============" << std::endl <<  std::endl;
+    std::cout << result << std::endl;
 }
 
 } // namespace experiments
