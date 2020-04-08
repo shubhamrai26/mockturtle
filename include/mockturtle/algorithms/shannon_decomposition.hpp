@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "../traits.hpp"
+#include "node_resynthesis/null.hpp"
 
 #include <kitty/constructors.hpp>
 #include <kitty/dynamic_truth_table.hpp>
@@ -50,62 +51,83 @@ namespace mockturtle
 namespace detail
 {
 
-template<class Ntk>
+template<class Ntk, class SynthesisFn>
 class shannon_decomposition_impl
 {
 public:
-  shannon_decomposition_impl( Ntk& ntk, kitty::dynamic_truth_table const& func, std::vector<signal<Ntk>> const& children )
-      : _ntk( ntk ),
-        _func( func ),
-        pis( children )
+  shannon_decomposition_impl( Ntk& ntk, kitty::dynamic_truth_table const& func, std::vector<uint32_t> const& vars, std::vector<signal<Ntk>> const& children, SynthesisFn const& resyn )
+      : ntk_( ntk ),
+        func_( func ),
+        vars_( vars ),
+        pis_( children ),
+        resyn_( resyn )
   {
-    _cache.insert( {func.construct(), _ntk.get_constant( false )} );
+    cache_.insert( {func.construct(), ntk_.get_constant( false )} );
 
-    for ( auto i = 0u; i < pis.size(); ++i )
+    for ( auto i = 0u; i < pis_.size(); ++i )
     {
       auto var = func.construct();
       kitty::create_nth_var( var, i );
-      _cache.insert( {func.construct(), pis[i] });
+      cache_.insert( {func.construct(), pis_[i] });
     }
   }
 
   signal<Ntk> run()
   {
-    /* -1 will call the cache */
-    return decompose( static_cast<int32_t>( pis.size() ) - 1, _func );
+    return decompose( 0u, func_ );
   }
 
 private:
-  signal<Ntk> decompose( int32_t var, kitty::dynamic_truth_table const& func )
+  signal<Ntk> decompose( uint32_t var_index, kitty::dynamic_truth_table const& func )
   {
     /* cache lookup... */
-    auto it = _cache.find( func );
-    if ( it != _cache.end() )
+    auto it = cache_.find( func );
+    if ( it != cache_.end() )
     {
       return it->second;
     }
 
     /* ...and for the complement */
-    it = _cache.find( ~func );
-    if ( it != _cache.end() )
+    it = cache_.find( ~func );
+    if ( it != cache_.end() )
     {
-      return _ntk.create_not( it->second );
+      return ntk_.create_not( it->second );
     }
 
-    /* decompose */
-    assert( var >= 0 && var < static_cast<int32_t>( pis.size() ) );
-    auto func0 = kitty::cofactor0( func, var );
-    auto func1 = kitty::cofactor1( func, var );
-    auto f = _ntk.create_ite( pis[var], decompose( var - 1, func1 ), decompose( var - 1, func0 ) );
-    _cache.insert( {func, f} );
+    signal<Ntk> f;
+    if ( var_index == vars_.size() )
+    {
+      auto copy = func;
+      const auto support = kitty::min_base_inplace( copy );
+      const auto small_func = kitty::shrink_to( copy, support.size() );
+      std::vector<signal<Ntk>> small_pis( support.size() );
+      for ( auto i = 0u; i < support.size(); ++i )
+      {
+        small_pis[i] = pis_[support[i]];
+      }
+      resyn_( ntk_, small_func, small_pis.begin(), small_pis.end(), [&]( auto const& _f ) {
+        f = _f;
+        return false;
+      } );
+    }
+    else
+    {
+      /* decompose */
+      const auto f0 = decompose( var_index + 1, kitty::cofactor0( func, vars_[var_index] ) );
+      const auto f1 = decompose( var_index + 1, kitty::cofactor1( func, vars_[var_index] ) );
+      f = ntk_.create_ite( pis_[vars_[var_index]], f1, f0 );
+    }
+    cache_.insert( {func, f} );
     return f;
   }
 
 private:
-  Ntk& _ntk;
-  kitty::dynamic_truth_table _func;
-  std::vector<signal<Ntk>> pis;
-  std::unordered_map<kitty::dynamic_truth_table, signal<Ntk>, kitty::hash<kitty::dynamic_truth_table>> _cache;
+  Ntk& ntk_;
+  kitty::dynamic_truth_table func_;
+  std::vector<uint32_t> vars_;
+  std::vector<signal<Ntk>> const& pis_;
+  SynthesisFn const& resyn_;
+  std::unordered_map<kitty::dynamic_truth_table, signal<Ntk>, kitty::hash<kitty::dynamic_truth_table>> cache_;
 };
 
 } // namespace detail
@@ -113,23 +135,24 @@ private:
 /*! \brief Shannon decomposition
  *
  * This function applies Shannon decomposition on an input truth table and
- * constructs a network based.  The variable ordering is from the most
- * significant to the least significant bit.
+ * constructs a network based.  The variabe ordering can be specified as
+ * an input.  If not all variables are specified, the remaining co-factors
+ * are synthesizes using the resynthesis function.
  *
  * **Required network functions:**
  * - `create_not`
  * - `create_ite`
  * - `get_constant`
  */
-template<class Ntk>
-signal<Ntk> shannon_decomposition( Ntk& ntk, kitty::dynamic_truth_table const& func, std::vector<signal<Ntk>> const& children )
+template<class Ntk, class SynthesisFn = null_resynthesis<Ntk>>
+signal<Ntk> shannon_decomposition( Ntk& ntk, kitty::dynamic_truth_table const& func, std::vector<uint32_t> const& vars, std::vector<signal<Ntk>> const& children, SynthesisFn const& resyn = {} )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_create_not_v<Ntk>, "Ntk does not implement the create_not method" );
   static_assert( has_create_ite_v<Ntk>, "Ntk does not implement the create_ite method" );
   static_assert( has_get_constant_v<Ntk>, "Ntk does not implement the get_constant method" );
 
-  detail::shannon_decomposition_impl<Ntk> impl( ntk, func, children );
+  detail::shannon_decomposition_impl<Ntk, SynthesisFn> impl( ntk, func, vars, children, resyn );
   return impl.run();
 }
 

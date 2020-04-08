@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <vector>
 
 #include <kitty/dynamic_truth_table.hpp>
@@ -66,9 +67,11 @@ class shannon_resynthesis
 {
 public:
   template<typename LeavesIterator, typename Fn>
-  void operator()( Ntk& ntk, kitty::dynamic_truth_table const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn )
+  void operator()( Ntk& ntk, kitty::dynamic_truth_table const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn ) const
   {
-    const auto f = shannon_decomposition( ntk, function, std::vector<signal<Ntk>>( begin, end ) );
+    std::vector<uint32_t> vars( function.num_vars() );
+    std::iota( vars.begin(), vars.end(), 0u );
+    const auto f = shannon_decomposition( ntk, function, vars, std::vector<signal<Ntk>>( begin, end ) );
     fn( f );
   }
 };
