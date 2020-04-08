@@ -60,7 +60,7 @@ int main()
     fmt::print( "[i] processing {}\n", benchmark );
     xmg_network xmg;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg ) );
-    std::string const genlib_path = "/Users/lsi1-guest/EPFL_Work/abc/std_libs/date_lib_count_tt_4.genlib";
+    std::string const genlib_path = "/afs/pd.inf.tu-dresden.de/users/shubham/abc-vlsi-cad-flow/std_libs//date_lib_count_tt_4.genlib";
 
     float area_before = abc_map( xmg, genlib_path );
 
@@ -79,6 +79,8 @@ int main()
     resub_ps.max_pis = 8u;
     //resub_ps.progress = true;
     resub_ps.max_inserts = 1u;  // Discuss with Heinz once.
+    resub_ps.use_dont_cares = true;  // Discuss with Heinz once.
+    resub_ps.window_size = 16u;  // Discuss with Heinz once.
 
     // XMG rewriting parameter set
     cut_rewriting_params cr_ps;
