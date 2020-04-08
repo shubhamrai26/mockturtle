@@ -67,8 +67,8 @@ int main()
   for ( auto const& benchmark : epfl_benchmarks() )
   {
     //if (benchmark != "voter" && benchmark != "div" ) //&& 
-    if( benchmark != "adder" ) 
-      continue;
+    ////if( benchmark != "adder" ) 
+    //    continue;
     fmt::print( "[i] processing {}\n", benchmark );
     
     xmg_network xmg_prev;
@@ -135,6 +135,7 @@ int main()
     std::string sd_before = fmt::format( "{}/{} = {}", ( ps1.actual_maj + ps1.actual_xor3 ),  size_before, sd_rat);
     float total_imp;
     
+    xmg_dont_cares_optimization( xmg );
     //ps3.reset();
     //depth_view depth_xmg{xmg};
     //std::cout << "size before algerbraic opt " << xmg.num_gates() << "depth " << depth_xmg.depth() <<  std::endl;
@@ -160,9 +161,9 @@ int main()
         const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
 
 
-        xmg3_npn_resynthesis<xmg_network> resyn;
-        cut_rewriting( xmg, resyn, cr_ps, &cr_st );
-        xmg = cleanup_dangling( xmg );
+        //xmg3_npn_resynthesis<xmg_network> resyn;
+        //cut_rewriting( xmg, resyn, cr_ps, &cr_st );
+        //xmg = cleanup_dangling( xmg );
 
         const auto cec2 = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
 
@@ -170,7 +171,7 @@ int main()
           total_imp = 0;
         else
         {
-          int diff = size_per_iteration - xmg.num_gates();
+            int diff = size_per_iteration - xmg.num_gates();
           total_imp = 100 * (double(std::abs(diff))/size_per_iteration);
         }
         
@@ -205,6 +206,7 @@ int main()
     lut_info lut_data;
 
     lut_data = abc_lut_mapper_if( xmg );
+    
   
    
     //lut_mapping_stats lut_st;
@@ -220,7 +222,7 @@ int main()
 
     //std::cout << "Lut equivalnce starts here " <<  std::endl;
     const auto cec_klut = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-    exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, equiv, init_area, area_after, area_imp, xmg.num_gates(), xmg_depth.depth(), lut_data.size, lut_data.depth );
+    exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, xmg.num_gates(), xmg_depth.depth(), lut_data.size, lut_data.depth );
   }
 
   exp.save();
