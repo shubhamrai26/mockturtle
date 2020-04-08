@@ -36,6 +36,7 @@
 #include <unordered_set>
 
 #include "../traits.hpp"
+#include "../networks/xmg.hpp"
 
 namespace mockturtle
 {
@@ -85,17 +86,10 @@ struct xmg_cost_params
 
 };
 
-template<class Ntk>
-uint32_t num_inverters( Ntk const& ntk )
+inline uint32_t num_inverters( xmg_network const& ntk )
 {
-  static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
-  static_assert( has_foreach_gate_v<Ntk>, "Ntk does not implement the foreach_gate method" );
-  static_assert( has_foreach_fanin_v<Ntk>, "Ntk does not implement the foreach_fanin method" );
-  static_assert( has_foreach_po_v<Ntk>, "Ntk does not implement the foreach_po method" );
-  static_assert( has_is_complemented_v<Ntk>, "Ntk does not implement the is_complemented method" );
-  static_assert( has_get_node_v<Ntk>, "Ntk does not implement the get_node method" );
 
-  std::unordered_set<node<Ntk>> inverted_nodes;
+  std::unordered_set<node<xmg_network>> inverted_nodes;
 
   ntk.foreach_gate( [&]( auto const& n ) {
     ntk.foreach_fanin( n, [&]( auto const& f ) {
@@ -122,7 +116,7 @@ uint32_t num_inverters( Ntk const& ntk )
  */
 
 template<class Ntk>
-uint32_t num_dangling_inputs( Ntk const& ntk )
+uint32_t xmg_num_dangling_inputs( Ntk const& ntk )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_foreach_gate_v<Ntk>, "Ntk does not implement the foreach_gate method" );

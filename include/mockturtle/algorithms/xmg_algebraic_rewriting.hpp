@@ -36,6 +36,7 @@
 #include <optional>
 
 #include "../views/topo_view.hpp"
+#include "../utils/stopwatch.hpp"
 
 namespace mockturtle
 {
@@ -83,6 +84,12 @@ struct xmg_algebraic_depth_rewriting_params
   bool allow_area_increase{true};
 };
 
+struct xmg_algebraic_depth_rewriting_stats
+{
+    /*! \brief Total runtime */
+    stopwatch<>::duration time_total{0};
+};
+
 namespace detail
 {
 
@@ -90,13 +97,15 @@ template<class Ntk>
 class xmg_algebraic_depth_rewriting_impl
 {
 public:
-  xmg_algebraic_depth_rewriting_impl( Ntk& ntk, xmg_algebraic_depth_rewriting_params const& ps )
-      : ntk( ntk ), ps( ps )
+  xmg_algebraic_depth_rewriting_impl( Ntk& ntk, xmg_algebraic_depth_rewriting_params const& ps, xmg_algebraic_depth_rewriting_stats& st )
+      : ntk( ntk ), ps( ps ) , st(st)
   {
   }
 
   void run()
   {
+    stopwatch t( st.time_total );
+
     switch ( ps.strategy )
     {
     case xmg_algebraic_depth_rewriting_params::dfs:
@@ -120,7 +129,7 @@ private:
         return;
       topo_view topo{ntk, po};
       topo.foreach_node( [this]( auto n ) {
-        reduce_depth( n );
+        //reduce_depth( n );
         reduce_depth_xor_associativity( n );
         reduce_depth_xor_complementary_associativity( n );
         return true;
@@ -454,6 +463,7 @@ private:
 private:
   Ntk& ntk;
   xmg_algebraic_depth_rewriting_params const& ps;
+  xmg_algebraic_depth_rewriting_stats& st;
 };
 
 } // namespace detail
@@ -490,7 +500,7 @@ private:
    \endverbatim
  */
 template<class Ntk>
-void xmg_algebraic_depth_rewriting( Ntk& ntk, xmg_algebraic_depth_rewriting_params const& ps = {} )
+void xmg_algebraic_depth_rewriting( Ntk& ntk, xmg_algebraic_depth_rewriting_params const& ps = {}, xmg_algebraic_depth_rewriting_stats *pst = nullptr )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_get_node_v<Ntk>, "Ntk does not implement the get_node method" );
@@ -509,8 +519,14 @@ void xmg_algebraic_depth_rewriting( Ntk& ntk, xmg_algebraic_depth_rewriting_para
   static_assert( has_value_v<Ntk>, "Ntk does not implement the value method" );
   static_assert( has_fanout_size_v<Ntk>, "Ntk does not implement the fanout_size method" );
 
-  detail::xmg_algebraic_depth_rewriting_impl<Ntk> p( ntk, ps );
+  xmg_algebraic_depth_rewriting_stats st;
+  detail::xmg_algebraic_depth_rewriting_impl<Ntk> p( ntk, ps, st );
   p.run();
+
+  if ( pst )
+  {
+      *pst = st;
+  }
 }
 
 } /* namespace mockturtle */

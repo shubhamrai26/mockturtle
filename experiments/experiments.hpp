@@ -44,8 +44,11 @@
 #include <fmt/color.h>
 #include <fmt/format.h>
 #include <mockturtle/io/write_bench.hpp>
+#include <mockturtle/io/write_verilog.hpp>
+#include <mockturtle/io/write_blif.hpp>
 #include <nlohmann/json.hpp>
 
+//#define genlib_path "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_2.genlib"
 namespace experiments
 {
 
@@ -412,6 +415,15 @@ std::string benchmark_path( std::string const& benchmark_name, std::string const
 #endif
 }
 
+std::string abc_path( std::string const& benchmark_name )
+{
+#ifndef EXPERIMENTS_PATH
+  return fmt::format( "{}.aig", benchmark_name );
+#else
+  return fmt::format( "{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark_name );
+#endif
+}
+
 template<class Ntk>
 bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 {
@@ -462,10 +474,50 @@ float abc_map (Ntk const& ntk, std::string const& genlib_path )
   return std::stof( str1 ); 
 }
 
-void abc_lut_reader ( std::string const& benchmark )
+struct lut_info
 {
-    //mockturtle::write_bench( ntk, "/tmp/test.bench" );
-     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+    uint32_t depth;
+    uint32_t size;
+};
+
+template <class Ntk>
+lut_info abc_lut_mapper_if( Ntk const& ntk )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; if -K 6 ; print_stats\"" );
+
+  lut_info ldata;
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string node_str = result.substr ( result.find( "nd =" ) + 5, 5);
+  std::string lev_str = result.substr ( result.find( "lev" ) + 6 ); 
+  std::cout << "node_str ---------> " << node_str << std::endl;
+  std::cout << "lev_str ------>  " << lev_str << std::endl;
+  ldata.depth = std::stoi( lev_str );
+  ldata.size = std::stoi( node_str );
+  //uint32_t sp = total_str.find( "Area" );
+  //uint32_t lp = total_str.find( "100 \%" );
+  //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) );
+  return ldata;
+
+}
+
+
+void abc_lut_reader_if ( std::string const& benchmark )
+{
+     std::string command = fmt::format( "abc -q \"read {}; if -K 3; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
 
     std::array<char, 1024> buffer;
     std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
@@ -482,5 +534,26 @@ void abc_lut_reader ( std::string const& benchmark )
     std::cout << "result LUT mapped ===============" << std::endl <<  std::endl;
     std::cout << result << std::endl;
 }
+
+void abc_lut_reader_mf ( std::string const& benchmark )
+{
+     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped ===============" << std::endl <<  std::endl;
+    std::cout << result << std::endl;
+}
+
 
 } // namespace experiments
