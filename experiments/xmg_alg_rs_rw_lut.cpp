@@ -61,21 +61,25 @@ int main()
     using namespace experiments;
     using namespace mockturtle;
   
-    std::string const genlib_path = "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_4.genlib";
-  experiment<std::string, uint32_t, float, std::string, std::string, std::string, bool, double, double, double, double, double, double, double> exp( "xmg_resubstituion", "benchmark", "tot_it", "size_impr", "runtime rw/rs", "sd", " sd'", "equivalent", "init_area", "area_after", "area_impr", "xmg_size", "xmg_depth", "lut_size", "lut_depth"  );
+    std::string const genlib_path = "/afs/pd.inf.tu-dresden.de/common/XMG_opt/date_lib_count_tt_4.genlib";
+  experiment<std::string, uint32_t, float, std::string, std::string, std::string, bool, double, double, double, double, double, double, double> exp( "xmg_resubstituion", "benchmark", "tot_it", "size_impr", "runtime rw/rs", "sd", " sd'", "equivalent", "init_area", "area_after", "area_impr", "dc2", "dch", "compress2rs", "rs_rw"  );
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
     //if (benchmark != "voter" && benchmark != "div" ) //&& 
-    ////if( benchmark != "adder" ) 
-    //    continue;
+    if( benchmark == "hyp" ) 
+        continue;
     fmt::print( "[i] processing {}\n", benchmark );
     
     xmg_network xmg_prev;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg_prev ) );
 
     
-    float init_area= abc_map(xmg_prev, genlib_path);
+    float init_area= abc_map( xmg_prev, genlib_path );
+    float dc2_area = abc_map_dc2( xmg_prev, genlib_path );
+    float dch_area = abc_map_dch ( xmg_prev, genlib_path );
+    float compress2rs_area = abc_map_compress2rs( xmg_prev, genlib_path );
+    float rs_rw_area = abc_map_rsrw (xmg_prev, genlib_path );
     
     abc_lut_reader_if ( benchmark );
 
@@ -135,7 +139,7 @@ int main()
     std::string sd_before = fmt::format( "{}/{} = {}", ( ps1.actual_maj + ps1.actual_xor3 ),  size_before, sd_rat);
     float total_imp;
     
-    xmg_dont_cares_optimization( xmg );
+    //xmg_dont_cares_optimization( xmg );
     //ps3.reset();
     //depth_view depth_xmg{xmg};
     //std::cout << "size before algerbraic opt " << xmg.num_gates() << "depth " << depth_xmg.depth() <<  std::endl;
@@ -161,9 +165,9 @@ int main()
         const auto cec = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
 
 
-        //xmg3_npn_resynthesis<xmg_network> resyn;
-        //cut_rewriting( xmg, resyn, cr_ps, &cr_st );
-        //xmg = cleanup_dangling( xmg );
+        xmg3_npn_resynthesis<xmg_network> resyn;
+        cut_rewriting( xmg, resyn, cr_ps, &cr_st );
+        xmg = cleanup_dangling( xmg );
 
         const auto cec2 = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
 
@@ -188,6 +192,7 @@ int main()
     float final_improvement = ( double( ( size_before - size_after ) ) / size_before ) * 100 ;
 
     std::cout << "After Optimizations" <<  std::endl; 
+
     ps2.reset();
     num_gate_profile( xmg, ps2);
     ps2.report();
@@ -222,7 +227,8 @@ int main()
 
     //std::cout << "Lut equivalnce starts here " <<  std::endl;
     const auto cec_klut = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-    exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, xmg.num_gates(), xmg_depth.depth(), lut_data.size, lut_data.depth );
+    //exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, xmg.num_gates(), xmg_depth.depth(), lut_data.size, lut_data.depth );
+    exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, dc2_area, dch_area, compress2rs_area, rs_rw_area );
   }
 
   exp.save();
