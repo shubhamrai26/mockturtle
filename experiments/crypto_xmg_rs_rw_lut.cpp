@@ -72,7 +72,15 @@ int main()
     fmt::print( "[i] processing {}\n", benchmark );
     
     xmg_network xmg;
-    lorina::read_verilog( benchmark_path( benchmark ), verilog_reader( xmg ) );
+    auto result = lorina::read_verilog( benchmark_path( benchmark, "", "v" ), mockturtle::verilog_reader( xmg ) );
+
+    if (result == lorina::return_code::parse_error)
+    {
+        std::cout << "Parsing error in Verilog" << std::endl;
+        continue;
+    }
+
+    std::cout<< "abc_techmap" <<std::endl; 
 
     
     float init_area= abc_techmap(xmg, genlib_path);

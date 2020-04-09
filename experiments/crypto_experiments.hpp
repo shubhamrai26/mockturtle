@@ -450,12 +450,12 @@ std::vector<std::string> crypto_benchmarks()
   return result;
 }
 
-std::string benchmark_path( std::string const& benchmark_name, std::string const& path_type = "", std::string const& filetype = "aig" ) 
+std::string benchmark_path( std::string const& benchmark_name, std::string const& path_type = "", std::string const& filetype = "v" ) 
 {
 #ifndef EXPERIMENTS_PATH
-  return fmt::format( "{}.aig", benchmark_name );
+    return fmt::format( "{}.v", benchmark_name );
 #else
-  return fmt::format( "{}benchmarks{}/{}.{}", EXPERIMENTS_PATH, path_type, benchmark_name, filetype );
+  return fmt::format( "{}crypto_benchmarks{}/{}.{}", EXPERIMENTS_PATH, path_type, benchmark_name, filetype );
 #endif
 }
 
@@ -482,8 +482,8 @@ bool abc_cec( Ntk const& ntk, std::string const& benchmark, std::string const& p
 template <class Ntk>
 float abc_techmap( Ntk const& ntk, std::string const& genlib_path )
 {
-  mockturtle::write_verilog( ntk, "/tmp/test.v" );
-  std::string const command = fmt::format( "abc -q \"read /tmp/test.v; read_genlib {} ;map; print_gates\"", genlib_path );
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string const command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;map; print_gates\"", genlib_path );
 
   std::array<char, 1024> buffer;
   std::string result;
@@ -666,6 +666,46 @@ void abc_lut_reader_mf( std::string const& benchmark )
   }
   std::cout << "result LUT mf-mapped ===============" << std::endl <<  std::endl;
   std::cout << result << std::endl;
+}
+
+struct lut_info
+{
+    uint32_t depth;
+    uint32_t size;
+};
+
+template <class Ntk>
+lut_info abc_lut_mapper_if( Ntk const& ntk )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; if -K 6 ; print_stats\"" );
+
+  lut_info ldata;
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string node_str = result.substr ( result.find( "nd =" ) + 5, 5);
+  std::string lev_str = result.substr ( result.find( "lev" ) + 6 ); 
+  std::cout << "node_str ---------> " << node_str << std::endl;
+  std::cout << "lev_str ------>  " << lev_str << std::endl;
+  ldata.depth = std::stoi( lev_str );
+  ldata.size = std::stoi( node_str );
+  //uint32_t sp = total_str.find( "Area" );
+  //uint32_t lp = total_str.find( "100 \%" );
+  //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) );
+  return ldata;
+
 }
 
 } // namespace experiments
