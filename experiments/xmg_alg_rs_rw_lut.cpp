@@ -62,7 +62,9 @@ int main()
     using namespace mockturtle;
   
     std::string const genlib_path = "/afs/pd.inf.tu-dresden.de/common/XMG_opt/date_lib_count_tt_4.genlib";
-  experiment<std::string, uint32_t, float, std::string, std::string, std::string, bool, double, double, double, double, double, double, double> exp( "xmg_resubstituion", "benchmark", "tot_it", "size_impr", "runtime rw/rs", "sd", " sd'", "equivalent", "init_area", "area_after", "area_impr", "dc2", "dch", "compress2rs", "rs_rw"  );
+  experiment<std::string, uint32_t, float, std::string, bool> exp1( "xmg_resubstituion", "benchmark", "tot_it", "size_impr", "runtime rw/rs", "equivalent" );
+  experiment<std::string, std::string, std::string, double, double, double, double, double, double, double> exp2( "xmg_resubstituion", "benchmark", "sd", " sd'", "area", "area'", "area_impr", "dc2", "dch", "c2rs", "rs_rw"  );
+  experiment<std::string, double, double, double, double, double, double> exp3( "xmg_resubstituion", "benchmark", "xmg_size", "xmg_size'", "xmg_depth", "xmg_depth'", "lut_size", "lut_depth"  );
 
   for ( auto const& benchmark : epfl_benchmarks() )
   {
@@ -111,6 +113,7 @@ int main()
 
 
     float area_before = abc_map( xmg, genlib_path );
+    depth_view xmg_prev_depth{xmg_prev};
 
     xmg_cost_params ps1, ps2, ps3;
     int32_t size_before, size_after, size_per_iteration;
@@ -147,10 +150,8 @@ int main()
     
     //xmg_dont_cares_optimization( xmg );
     //ps3.reset();
-    //depth_view depth_xmg{xmg};
     //std::cout << "size before algerbraic opt " << xmg.num_gates() << "depth " << depth_xmg.depth() <<  std::endl;
     //num_gate_profile(xmg, ps3);
-    ////xmg_algebraic_depth_rewriting( depth_xmg );
     ////xmg = cleanup_dangling( xmg ); 
 
     //const auto cec5 = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
@@ -164,6 +165,10 @@ int main()
     {
         num_iters++;
         size_per_iteration = xmg.num_gates();
+
+        depth_view depth_xmg{xmg};
+        xmg_algebraic_depth_rewriting( depth_xmg );
+        xmg = cleanup_dangling( xmg );
 
         xmg_resubstitution(xmg, resub_ps, &resub_st);
         xmg = cleanup_dangling( xmg );
@@ -233,11 +238,16 @@ int main()
 
     //std::cout << "Lut equivalnce starts here " <<  std::endl;
     const auto cec_klut = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-    //exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, xmg.num_gates(), xmg_depth.depth(), lut_data.size, lut_data.depth );
-    exp ( benchmark, num_iters, final_improvement, rt, sd_before, sd_after, cec_klut, init_area, area_after, area_imp, dc2_area, dch_area, compress2rs_area, rs_rw_area );
+    exp1 (benchmark, num_iters, final_improvement, rt, equiv);
+    exp2 ( benchmark, sd_before, sd_after, init_area, area_after, area_imp, dc2_area, dch_area, compress2rs_area, rs_rw_area );
+    exp3 ( benchmark, xmg_prev.num_gates(), xmg.num_gates(), xmg_prev_depth.depth(), xmg_depth.depth(), lut_data.size, lut_data.depth );
   }
 
-  exp.save();
-  exp.table();
+  exp1.save();
+  exp1.table();
+  exp2.save();
+  exp2.table();
+  exp3.save();
+  exp3.table();
   return 0;
 }
