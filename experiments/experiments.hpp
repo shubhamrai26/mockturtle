@@ -637,7 +637,7 @@ lut_info abc_lut_mapper_if( Ntk const& ntk )
 
 void abc_lut_reader_if ( std::string const& benchmark )
 {
-     std::string command = fmt::format( "abc -q \"read {}; if -K 3; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
+     std::string command = fmt::format( "abc -q \"read {}; if -K 4; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
 
     std::array<char, 1024> buffer;
     std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
@@ -657,7 +657,7 @@ void abc_lut_reader_if ( std::string const& benchmark )
 
 void abc_lut_reader_mf ( std::string const& benchmark )
 {
-     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 4;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
 
     std::array<char, 1024> buffer;
     std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    

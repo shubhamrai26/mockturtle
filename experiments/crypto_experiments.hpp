@@ -460,7 +460,7 @@ std::string benchmark_path( std::string const& benchmark_name, std::string const
 }
 
 template<class Ntk>
-bool abc_cec( Ntk const& ntk, std::string const& benchmark, std::string const& path_type = "", std::string const& filetype = "aig" )
+bool abc_cec( Ntk const& ntk, std::string const& benchmark, std::string const& path_type = "", std::string const& filetype = "v" )
 {
   mockturtle::write_bench( ntk, "/tmp/test.bench" );
   std::string command = fmt::format( "abc -q \"cec -n {} /tmp/test.bench\"", benchmark_path( benchmark, path_type, filetype ) );
@@ -630,7 +630,7 @@ float abc_map_rsrw (Ntk const& ntk, std::string const& genlib_path )
 
 void abc_lut_reader_if( std::string const& benchmark )
 {
-  std::string command = fmt::format( "abc -q \"read {}; if -K 3; print_stats; write_bench {}\"", benchmark_path( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
+  std::string command = fmt::format( "abc -q \"read {}; if -K 4; print_stats; write_bench {}\"", benchmark_path( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
 
   std::array<char, 1024> buffer;
   std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
@@ -650,7 +650,7 @@ void abc_lut_reader_if( std::string const& benchmark )
 
 void abc_lut_reader_mf( std::string const& benchmark )
 {
-  std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put print_stats; write_bench {}\"", benchmark_path( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+  std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 4;&put print_stats; write_bench {}\"", benchmark_path( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
 
   std::array<char, 1024> buffer;
   std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );

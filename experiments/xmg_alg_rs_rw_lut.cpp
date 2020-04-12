@@ -67,18 +67,24 @@ int main()
   for ( auto const& benchmark : epfl_benchmarks() )
   {
     //if (benchmark != "voter" && benchmark != "div" ) //&& 
-    if( benchmark == "hyp" ) 
-        continue;
+    //if( benchmark == "hyp" ) 
+    //    continue;
     fmt::print( "[i] processing {}\n", benchmark );
     
     xmg_network xmg_prev;
     lorina::read_aiger( benchmark_path( benchmark ), aiger_reader( xmg_prev ) );
 
+    float dc2_area = 0;
+    float dch_area = 0;
+    float compress2rs_area = 0;
     
     float init_area= abc_map( xmg_prev, genlib_path );
-    float dc2_area = abc_map_dc2( xmg_prev, genlib_path );
-    float dch_area = abc_map_dch ( xmg_prev, genlib_path );
-    float compress2rs_area = abc_map_compress2rs( xmg_prev, genlib_path );
+    if (benchmark != "hyp")
+    {
+        dc2_area = abc_map_dc2( xmg_prev, genlib_path );
+        dch_area = abc_map_dch ( xmg_prev, genlib_path );
+        compress2rs_area = abc_map_compress2rs( xmg_prev, genlib_path );
+    }
     float rs_rw_area = abc_map_rsrw (xmg_prev, genlib_path );
     
     abc_lut_reader_if ( benchmark );

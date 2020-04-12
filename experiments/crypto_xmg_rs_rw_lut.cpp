@@ -61,7 +61,7 @@ int main()
     using namespace experiments;
     using namespace mockturtle;
   
-    std::string const genlib_path = "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_4.genlib";
+    std::string const genlib_path = "/afs/pd.inf.tu-dresden.de/common/XMG_opt/date_lib_count_tt_4.genlib";
   experiment<std::string, uint32_t, float, std::string, std::string, std::string, bool, double, double, double, double, double, double, double> exp( "xmg_resubstituion", "benchmark", "tot_it", "size_impr", "runtime rw/rs", "sd", " sd'", "equivalent", "init_area", "area_after", "area_impr", "xmg_size", "xmg_depth", "lut_size", "lut_depth"  );
 
   for ( auto const& benchmark : crypto_benchmarks() )
@@ -104,13 +104,6 @@ int main()
 
     //mockturtle::xmg3_npn_resynthesis<xmg_network> resyn2;
     //mockturtle::node_resynthesis( xmg, klut, resyn2 );
-    const auto cec3 = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-
-    xmg = cleanup_dangling(xmg);
-    const auto cec4 = benchmark == "hyp" ? true : abc_cec( xmg, benchmark );
-
-    std::cout << "no of gates in XMG   "  << xmg.num_gates() << std::endl;
-
 
     float area_before = abc_techmap( xmg, genlib_path );
 
@@ -147,7 +140,7 @@ int main()
     std::string sd_before = fmt::format( "{}/{} = {}", ( ps1.actual_maj + ps1.actual_xor3 ),  size_before, sd_rat);
     float total_imp;
     
-    xmg_dont_cares_optimization( xmg );
+    //xmg_dont_cares_optimization( xmg );
     //ps3.reset();
     //depth_view depth_xmg{xmg};
     //std::cout << "size before algerbraic opt " << xmg.num_gates() << "depth " << depth_xmg.depth() <<  std::endl;
@@ -160,8 +153,6 @@ int main()
     //ps3.reset();
     //num_gate_profile(xmg, ps3);
     //ps3.report();
-
-
     do 
     {
         num_iters++;
@@ -192,7 +183,7 @@ int main()
         equiv &= cec2 & cec;
 
 
-        std::cout << "eqivalent before " << cec3 << "equivalence after topp " << cec4 << " equivalence check after rs  " << cec2  << " after rw " << cec << std::endl;
+        std::cout << " equivalence check after rs  " << cec2  << " after rw " << equiv << std::endl;
 
     } while ( total_imp > 0.5 );
     //} while (false);
