@@ -444,11 +444,131 @@ bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 
   return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
 }
+
 template <class Ntk>
 float abc_map (Ntk const& ntk, std::string const& genlib_path )
 {
   mockturtle::write_bench( ntk, "/tmp/test.bench" );
   std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  uint32_t sp = total_str.find( "Area" );
+  uint32_t lp = total_str.find( "100 \%" );
+  //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+  std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+  //std::cout << " value of str1 = " << str1 << std::endl;
+
+  return std::stof( str1 ); 
+}
+
+template <class Ntk>
+float abc_map_dc2 (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;strash; dc2; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  uint32_t sp = total_str.find( "Area" );
+  uint32_t lp = total_str.find( "100 \%" );
+  //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+  std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+  //std::cout << " value of str1 = " << str1 << std::endl;
+
+  return std::stof( str1 ); 
+}
+
+template <class Ntk>
+float abc_map_compress2rs (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;strash; compress2rs; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  uint32_t sp = total_str.find( "Area" );
+  uint32_t lp = total_str.find( "100 \%" );
+  //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+  std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+  //std::cout << " value of str1 = " << str1 << std::endl;
+
+  return std::stof( str1 ); 
+}
+template <class Ntk>
+float abc_map_dch (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;strash; dch; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============" <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  uint32_t sp = total_str.find( "Area" );
+  uint32_t lp = total_str.find( "100 \%" );
+  //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+  std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+  //std::cout << " value of str1 = " << str1 << std::endl;
+
+  return std::stof( str1 ); 
+}
+
+template <class Ntk>
+float abc_map_rsrw (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;strash; rw; rs; map; print_gates\"", genlib_path);
   
   std::array<char, 1024> buffer;
   std::string result;
@@ -517,7 +637,7 @@ lut_info abc_lut_mapper_if( Ntk const& ntk )
 
 void abc_lut_reader_if ( std::string const& benchmark )
 {
-     std::string command = fmt::format( "abc -q \"read {}; if -K 3; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
+     std::string command = fmt::format( "abc -q \"read {}; if -K 4; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
 
     std::array<char, 1024> buffer;
     std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
@@ -537,7 +657,7 @@ void abc_lut_reader_if ( std::string const& benchmark )
 
 void abc_lut_reader_mf ( std::string const& benchmark )
 {
-     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 3;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 4;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
 
     std::array<char, 1024> buffer;
     std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
