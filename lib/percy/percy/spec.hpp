@@ -352,6 +352,17 @@ namespace percy
                 return compiled_primitives.size() > 0;
             }
 
+            void add_primitive(kitty::dynamic_truth_table const &tt)
+            {
+                if(kitty::is_normal(tt)){
+                    compiled_primitives.push_back(tt);
+                }else{
+                    compiled_primitives.push_back(~tt);
+
+                }
+            }
+
+
             const std::vector<kitty::dynamic_truth_table>&
             get_compiled_primitives() const
             {

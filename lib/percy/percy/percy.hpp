@@ -1112,7 +1112,7 @@ namespace percy
 
         return failure;
     }
-
+    
     inline synth_result
     next_struct_solution(
         spec& spec, 
@@ -1630,7 +1630,7 @@ namespace percy
             return failure;
         }
 
-        if (encoder.block_solution(spec)) {
+           if (encoder.block_solution(spec)) {
             const auto status = solver.solve(spec.conflict_limit);
 
             if (status == success) {
