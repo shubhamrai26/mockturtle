@@ -136,13 +136,78 @@ Ntk create_from_binary_index_list( IndexIterator begin )
   return ntk;
 }
 
+template<class Ntk, class IndexIterator, class LeavesIterator>
+std::vector<signal<Ntk>> create_from_ternary_index_list( Ntk& dest, IndexIterator begin, LeavesIterator pi_begin )
+{
+  static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
+
+  static_assert( has_get_constant_v<Ntk>, "Ntk does not implement the get_constant method" );
+  static_assert( has_create_and_v<Ntk>, "Ntk does not implement the create_and method" );
+  static_assert( has_create_xor_v<Ntk>, "Ntk does not implement the create_xor method" );
+  static_assert( has_create_not_v<Ntk>, "Ntk does not implement the create_not method" );
+
+  static_assert( std::is_same_v<std::decay_t<typename std::iterator_traits<IndexIterator>::value_type>, uint32_t>, "IndexIterator value_type must be uint32_t" );
+  static_assert( std::is_same_v<std::decay_t<typename std::iterator_traits<LeavesIterator>::value_type>, signal<Ntk>>, "LeavesIterator value_type must be Ntk signal type" );
+
+  const auto signature = *begin++;
+  const auto num_pis = signature & 0xff;
+  const auto num_pos = ( signature >> 8 ) & 0xff;
+  const auto num_gates = signature >> 16;
+
+  // initialize gate-signal list
+  std::vector<signal<Ntk>> fs;
+  fs.push_back( dest.get_constant( false ) );
+  std::copy_n( pi_begin, num_pis, std::back_inserter( fs ) );
+
+  for ( auto i = 0u; i < num_gates; ++i )
+  {
+    const auto signal1 = *begin++;
+    const auto signal2 = *begin++;
+    const auto signal3 = *begin++;
+
+    const auto c1 = signal1 % 2 ? dest.create_not( fs[signal1 / 2] ) : fs[signal1 / 2];
+    const auto c2 = signal2 % 2 ? dest.create_not( fs[signal2 / 2] ) : fs[signal2 / 2];
+    const auto c3 = signal3 % 2 ? dest.create_not( fs[signal3 / 2] ) : fs[signal3 / 2];
+
+    fs.push_back( signal1 > signal2 ? dest.create_xor3( c1, c2, c3 ) : dest.create_maj( c1, c2, c3 ) );
+  }
+
+  std::vector<signal<Ntk>> pos( num_pos );
+  for ( auto i = 0u; i < num_pos; ++i )
+  {
+    const auto signal = *begin++;
+    pos[i] = signal % 2 ? dest.create_not( fs[signal / 2] ) : fs[signal / 2];
+  }
+
+  return pos;
+}
+
+template<class Ntk, class IndexIterator>
+Ntk create_from_ternary_index_list( IndexIterator begin )
+{
+  static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
+  static_assert( has_create_pi_v<Ntk>, "Ntk does not implement the create_pi method" );
+  static_assert( has_create_po_v<Ntk>, "Ntk does not implement the create_po method" );
+
+  static_assert( std::is_same_v<std::decay_t<typename std::iterator_traits<IndexIterator>::value_type>, uint32_t>, "IndexIterator value_type must be uint32_t" );
+
+  Ntk ntk;
+  std::vector<signal<Ntk>> pis( *begin & 0xff );
+  std::generate( pis.begin(), pis.end(), [&]() { return ntk.create_pi(); } );
+  for ( auto const& f : create_from_ternary_index_list<Ntk>( ntk, begin, pis.begin() ) )
+  {
+    ntk.create_po( f );
+  }
+  return ntk;
+}
+
 namespace detail
 {
 
 template<class Ntk>
 std::vector<uint32_t> to_index_list( Ntk const& ntk )
 {
-  static_assert( std::is_same_v<typename Ntk::base_type, xag_network> || std::is_same_v<typename Ntk::base_type, aig_network>, "Ntk must be XAG or AIG" );
+  // static_assert( std::is_same_v<typename Ntk::base_type, xag_network> || std::is_same_v<typename Ntk::base_type, aig_network>, "Ntk must be XAG or AIG" );
 
   std::vector<uint32_t> index_list;
   index_list.push_back( ( ntk.num_gates() << 16 ) | ( ntk.num_pos() << 8 ) | ntk.num_pis() );
@@ -181,7 +246,7 @@ std::vector<uint32_t> to_index_list( Ntk const& ntk )
 template<class Ntk>
 std::string to_index_list_string( Ntk const& ntk )
 {
-  static_assert( std::is_same_v<typename Ntk::base_type, xag_network> || std::is_same_v<typename Ntk::base_type, aig_network>, "Ntk must be XAG or AIG" );
+  // static_assert( std::is_same_v<typename Ntk::base_type, xag_network> || std::is_same_v<typename Ntk::base_type, aig_network>, "Ntk must be XAG or AIG" );
 
   /* compute signature */
   auto s = fmt::format( "{{{} << 16 | {} << 8 | {}", ntk.num_gates(), ntk.num_pos(), ntk.num_pis() );
