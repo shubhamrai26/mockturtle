@@ -28,10 +28,12 @@
 #include <mockturtle/algorithms/cleanup.hpp>
 #include <mockturtle/algorithms/collapse_mapped.hpp>
 #include <mockturtle/algorithms/cut_rewriting.hpp>
+#include <mockturtle/algorithms/detail/database_generator.hpp>
 #include <mockturtle/algorithms/lut_mapping.hpp>
 #include <mockturtle/algorithms/node_resynthesis.hpp>
-#include <mockturtle/algorithms/node_resynthesis/xmg_npn.hpp>
+#include <mockturtle/algorithms/node_resynthesis/exact.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xmg4_npn.hpp>
+#include <mockturtle/algorithms/node_resynthesis/xmg_npn.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
 #include <mockturtle/io/blif_reader.hpp>
 #include <mockturtle/io/index_list.hpp>
@@ -40,6 +42,7 @@
 #include <mockturtle/networks/aig.hpp>
 #include <mockturtle/views/mapping_view.hpp>
 #include <lorina/lorina.hpp>
+
 #include <fmt/format.h>
 
 #include <string>
@@ -61,10 +64,87 @@ mockturtle::klut_network lut_map( Ntk const& ntk, uint32_t k = 4 )
   return klut;
 }
 
-int main()
+void example1()
+{
+  /* enumerate NPN representatives */
+  std::unordered_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>> classes;
+  kitty::dynamic_truth_table tt( 4u );
+  do
+  {
+    const auto res = kitty::exact_npn_canonization( tt );
+    classes.insert( std::get<0>( res ) );
+    kitty::next_inplace( tt );
+  } while ( !kitty::is_const0( tt ) );
+
+  std::cout << "[i] enumerated "
+            << ( 1 << ( 1 << tt.num_vars() ) ) << " functions into "
+            << classes.size() << " classes." << std::endl;  
+
+
+  /* generate database with exact XMG synthesis */
+  mockturtle::xmg_network xmg;
+  mockturtle::exact_xmg_resynthesis<mockturtle::xmg_network> exact( {.use_only_self_dual_gates = true} );
+  mockturtle::detail::database_generator dbgen( xmg, exact, {} );
+  for ( const auto& f : classes )
+  {
+    dbgen.add_function( f );
+
+    std::cout << ".";
+    std::cout.flush();
+  }
+  mockturtle::write_verilog( xmg, "db.v" );
+}
+
+void example2()
 {
   using namespace experiments;
 
+  /* load database from file */
+  mockturtle::xmg_network xmg2_db, xmg3_db, xmgs_db;
+  read_verilog( "xmg2_db.v", mockturtle::verilog_reader( xmg2_db ) );
+  read_verilog( "xmg3_db.v", mockturtle::verilog_reader( xmg3_db ) );
+  read_verilog( "xmgs_db.v", mockturtle::verilog_reader( xmgs_db ) );
+
+  /* option 1: XMG strategy using databse from file */
+  mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmg2_resyn( mockturtle::detail::to_index_list( xmg2_db ) );
+  mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmg3_resyn( mockturtle::detail::to_index_list( xmg3_db ) );
+  mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmgs_resyn( mockturtle::detail::to_index_list( xmgs_db ) );
+    
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t> exp( "shubham", "benchmark", "LUTs", "XMG2", "XMG3", "XMGs" );
+
+  for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic ) )
+  {
+    fmt::print( "[i] processing {}\n", benchmark );
+
+    /* read aig */
+    mockturtle::aig_network aig;
+    if ( lorina::read_aiger( experiments::benchmark_path( benchmark ), mockturtle::aiger_reader( aig ) ) != lorina::return_code::success )
+    {
+      std::cout << "ERROR 2" << std::endl;
+      std::abort();
+      return;
+    }
+
+    /* LUT map AIG into k-LUT network */
+    auto klut = lut_map( aig, 4u );
+
+    /* resynthesize klut with resynthesis strategies */
+    mockturtle::xmg_network xmg2, xmg3, xmgs;
+    xmg2 = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg2_resyn );
+    xmg3 = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg3_resyn );
+    xmgs = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmgs_resyn );
+
+    exp( benchmark, klut.size(), xmg2.size(), xmg3.size(), xmgs.size() );
+  }
+
+  exp.save();
+  exp.table();
+}
+
+void example3()
+{
+  using namespace experiments;
+  
   /* Winston & Mathias's results from ASP-DAC'17 */
   std::map<std::string, std::tuple<uint32_t, uint32_t>> aspdac17_xmg;
   aspdac17_xmg.emplace( "adder", std::make_tuple( 639, 251 ) );
@@ -84,7 +164,7 @@ int main()
   {
     std::cout << "ERROR" << std::endl;
     std::abort();
-    return -1;
+    return;
   }
   else
   {
@@ -111,7 +191,7 @@ int main()
     {
       std::cout << "ERROR 2" << std::endl;
       std::abort();
-      return -1;
+      return;
     }
 
     /* LUT map AIG into k-LUT network */
@@ -155,6 +235,10 @@ int main()
   
   exp.save();
   exp.table();
+}
 
+int main()
+{
+  example2();
   return 0;
 }
