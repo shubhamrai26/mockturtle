@@ -44,8 +44,10 @@
 #include <fmt/color.h>
 #include <fmt/format.h>
 #include <mockturtle/io/write_bench.hpp>
+#include <mockturtle/io/write_verilog.hpp>
 #include <nlohmann/json.hpp>
 
+//#define genlib_path "/home/shubham/My_work/abc-vlsi-cad-flow/std_libs/date_lib_count_tt_2.genlib"
 namespace experiments
 {
 
@@ -56,7 +58,7 @@ struct json_table
   {
     for ( auto const& column : columns )
     {
-      max_widths_.push_back( static_cast<uint32_t>( column.size() ) );
+      max_widths_.push_back( column.size() );
     }
     entries_.push_back( columns );
     for ( auto const& row : data )
@@ -105,7 +107,7 @@ private:
         cell = fmt::format( "{}", static_cast<bool>( data ) );
       }
 
-      max_widths_[ctr] = std::max( max_widths_[ctr], static_cast<uint32_t>( cell.size() ) );
+      max_widths_[ctr] = std::max<uint32_t>( max_widths_[ctr], cell.size() );
       ++ctr;
       entry.push_back( cell );
     }
@@ -403,7 +405,16 @@ std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
   return result;
 }
 
-std::string benchmark_path( std::string const& benchmark_name )
+std::string benchmark_path( std::string const& benchmark_name, std::string const& path_type = "", std::string const& filetype = "aig" ) 
+{
+#ifndef EXPERIMENTS_PATH
+  return fmt::format( "{}.aig", benchmark_name );
+#else
+  return fmt::format( "{}benchmarks{}/{}.{}", EXPERIMENTS_PATH, path_type, benchmark_name, filetype );
+#endif
+}
+
+std::string abc_path( std::string const& benchmark_name )
 {
 #ifndef EXPERIMENTS_PATH
   return fmt::format( "{}.aig", benchmark_name );
@@ -415,8 +426,8 @@ std::string benchmark_path( std::string const& benchmark_name )
 template<class Ntk>
 bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 {
-  mockturtle::write_bench( ntk, "/tmp/test.bench" );
-  std::string command = fmt::format( "abc -q \"cec -n {} /tmp/test.bench\"", benchmark_path( benchmark ) );
+  mockturtle::write_bench( ntk, "/tmp/ex_test.bench" );
+  std::string command = fmt::format( "abc -q \"cec -n {} /tmp/ex_test.bench\"", benchmark_path( benchmark ) );
 
   std::array<char, 128> buffer;
   std::string result;
@@ -432,5 +443,374 @@ bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 
   return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
 }
+
+template <class Ntk>
+float abc_map (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/ex_test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/ex_test.bench; strash; read_genlib {} ;map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ Map" <<  std::endl << result << std::endl;
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  std::cout << "total_str " << total_str << std::endl;
+  if (!total_str.empty())
+  {
+      std::string area_str = total_str.substr ( total_str.find( "Area" ) + 1);
+      std::cout << "area_str " << area_str << std::endl;
+      uint32_t sp = area_str.find( "=" );
+      uint32_t lp = area_str.find( "100.00" );
+      std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      std::string str1 = area_str.substr ( ( sp + 1 ), ( lp - sp - 1  ) ); // 6 as to ignore "=" 
+      std::cout << " value of str1 = " << str1 << std::endl;
+
+      //std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+      //uint32_t sp = total_str.find( "Area" );
+      //uint32_t lp = total_str.find( "100.00 \%" );
+      ////std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 5 ) ); // 6 as to ignore "=" 
+      ////std::cout << " value of str1 = " << str1 << std::endl;
+
+      return std::stof( str1 ); 
+  }
+  else 
+      return 0;
+}
+
+template <class Ntk>
+float abc_map_dc2 (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/ex_test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/ex_test.bench; read_genlib {} ;strash; dc2; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ dc2 " <<  std::endl << result << std::endl;
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  std::cout << "total_str " << total_str << std::endl;
+  if (!total_str.empty())
+  {
+      std::string area_str = total_str.substr ( total_str.find( "Area" ) + 1);
+      std::cout << "area_str " << area_str << std::endl;
+      uint32_t sp = area_str.find( "=" );
+      uint32_t lp = area_str.find( "100.00" );
+      std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      std::string str1 = area_str.substr ( ( sp + 2), ( lp - sp - 2  ) ); // 6 as to ignore "=" 
+      std::cout << " value of str1 = " << str1 << std::endl;
+
+      //std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+      //uint32_t sp = total_str.find( "Area" );
+      //uint32_t lp = total_str.find( "100.00 \%" );
+      //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 5) ); // 6 as to ignore "=" 
+      //std::cout << " value of str1 = " << str1 << std::endl;
+
+      return std::stof( str1 ); 
+  }
+  else 
+      return 0;
+}
+
+template <class Ntk>
+float abc_map_compress2rs (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/ex_test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/ex_test.bench; read_genlib {} ;strash; compress2rs; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ compress2rs" <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  std::cout << "total_str " << total_str << std::endl;
+  if (!total_str.empty())
+  {
+      std::string area_str = total_str.substr ( total_str.find( "Area" ) + 1);
+      std::cout << "area_str " << area_str << std::endl;
+      uint32_t sp = area_str.find( "=" );
+      uint32_t lp = area_str.find( "100.00" );
+      std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      std::string str1 = area_str.substr ( ( sp + 2 ), ( lp - sp - 2  ) ); // 6 as to ignore "=" 
+      std::cout << " value of str1 = " << str1 << std::endl;
+
+      return std::stof( str1 ); 
+  }
+  else
+      return 0;
+}
+
+template <class Ntk>
+float abc_map_dch (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/ex_test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/ex_test.bench; read_genlib {} ;strash; dch; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ dch " <<  std::endl << result << std::endl;
+
+  std::string total_str = result.substr( result.find( "TOTAL " ) + 1);
+  std::cout << "total_str " << total_str << std::endl;
+  if (!total_str.empty())
+  {
+      std::string area_str = total_str.substr( total_str.find( "Area" ) + 1);
+      std::cout << "area_str " << area_str << std::endl;
+      uint32_t sp = area_str.find( "=" );
+      uint32_t lp = area_str.find( "100.00" );
+      std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      std::string str1 = area_str.substr( ( sp + 2 ), ( lp - sp - 2  ) ); // 6 as to ignore "=" 
+      std::cout << " value of str1 = " << str1 << std::endl;
+
+      //std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+      //std::cout << "total_str " << total_str << std::endl;
+      //uint32_t sp = total_str.find( "Area" );
+      //uint32_t lp = total_str.find( "100.00 \%" );
+      //std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 5 ) ); // 6 as to ignore "=" 
+      //std::cout << " value of str1 = " << str1 << std::endl;
+
+      //return 1;
+      return std::stof( str1 ); 
+  }
+  else 
+      return 0;
+}
+
+template <class Ntk>
+float abc_map_rsrw (Ntk const& ntk, std::string const& genlib_path )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; read_genlib {} ;strash; rw; rs; map; print_gates\"", genlib_path);
+  
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ rsrw " <<  std::endl << result << std::endl;
+  std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+  std::cout << "total_str " << total_str << std::endl;
+  if (! total_str.empty() )
+  {
+      std::string area_str = total_str.substr ( total_str.find( "Area" ) + 1);
+      std::cout << "area_str " << area_str << std::endl;
+      uint32_t sp = area_str.find( "=" );
+      uint32_t lp = area_str.find( "100.00" );
+      std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      std::string str1 = area_str.substr ( ( sp + 1 ), ( lp - sp - 1  ) ); // 6 as to ignore "=" 
+      std::cout << " value of str1 = " << str1 << std::endl;
+
+      //std::string total_str = result.substr ( result.find( "TOTAL " ) + 1);
+      //uint32_t sp = total_str.find( "Area" );
+      //uint32_t lp = total_str.find( "100.00 \%" );
+      ////std::cout << " sp "<< sp << " lp " << lp << std::endl;
+      //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) ); // 6 as to ignore "=" 
+      //std::cout << " value of str1 = " << str1 << std::endl;
+
+      return std::stof( str1 ); 
+  }
+  else 
+      return 0;
+}
+
+struct lut_info
+{
+    uint32_t depth;
+    uint32_t size;
+};
+
+template <class Ntk>
+lut_info abc_lut_mapper_if( Ntk const& ntk )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "abc -q \"read /tmp/test.bench; if -K 6 ; print_stats\"" );
+
+  lut_info ldata;
+  std::array<char, 1024> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  std :: cout << "results for mapping ============ if mapper ntk " <<  std::endl << result << std::endl;
+
+  std::string node_str = result.substr ( result.find( "nd =" ) + 5, 5);
+  std::string lev_str = result.substr ( result.find( "lev" ) + 6 ); 
+  std::cout << "node_str ---------> " << node_str << std::endl;
+  std::cout << "lev_str ------>  " << lev_str << std::endl;
+  ldata.depth = std::stoi( lev_str );
+  ldata.size = std::stoi( node_str );
+  //uint32_t sp = total_str.find( "Area" );
+  //uint32_t lp = total_str.find( "100 \%" );
+  //std::string str1 = total_str.substr ( ( sp + 6 ), ( lp - sp - 6 ) );
+  return ldata;
+
+}
+
+template <class Ntk>
+void abc_lut_reader_if (Ntk const& ntk, std::string const& benchmark )
+{
+    mockturtle::write_bench( ntk, "/tmp/test.bench" );
+      
+    std::string command = fmt::format( "abc -q \"read /tmp/test.bench; if -K 4; print_stats; write_bench {}\"", benchmark_path( benchmark, "_2if_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped ===============if mapper ntk and benchmark" << std::endl <<  std::endl;
+    std::cout << result << std::endl;
+}
+
+
+
+void abc_lut_reader_if ( std::string const& benchmark)
+{
+     std::string command = fmt::format( "abc -q \"read {}; if -K 4; print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_if_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped =============== if mapper benchmark " << std::endl <<  std::endl;
+    std::cout << result << std::endl;
+}
+
+
+
+void abc_lut_reader_if ( std::string const& benchmark, const uint32_t& k)
+{
+     std::string command = fmt::format( "abc -q \"read {}; if -K {}; print_stats; write_bench {}\"", benchmark_path ( benchmark ), k, benchmark_path( benchmark, "_if_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped =============== if reader " << std::endl <<  std::endl;
+    std::cout << result << std::endl;
+}
+
+void abc_lut_reader_mf ( std::string const& benchmark )
+{
+     std::string command = fmt::format( "abc -q \"read {};&get; &mf -K 4;&put print_stats; write_bench {}\"", benchmark_path ( benchmark ), benchmark_path( benchmark, "_mf_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped =============== mf reader" << std::endl <<  std::endl;
+    std::cout << result << std::endl;
+}
+template<class Ntk>
+void abc_lut_reader_mf (Ntk const& ntk, std::string const& benchmark )
+{
+    mockturtle::write_bench( ntk, "/tmp/test.bench" );
+      
+    fmt::print(" benchmark path = {}", benchmark_path( benchmark, "_mf_bench", "bench") ); 
+    std::string command = fmt::format( "abc -q \"read /tmp/test.bench; if -K 4; print_stats; write_bench {}\"", benchmark_path( benchmark, "_mf_bench", "bench") );
+
+    std::array<char, 1024> buffer;
+    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );    
+    std::string result;
+
+    if ( !pipe )
+    {
+        throw std::runtime_error( "popen() failed" );
+    }
+    while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+    {
+        result += buffer.data();
+    }
+    std::cout << "result LUT mapped =============== mf reader ntk and benchmark " << std::endl;
+    std::cout << result << std::endl;
+}
+
+
 
 } // namespace experiments

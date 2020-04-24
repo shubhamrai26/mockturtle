@@ -523,5 +523,469 @@
       }
     ],
     "version": "52a69ea"
+  },
+  {
+    "entries": [
+      {
+        "benchmark": "adder",
+        "klut improv": "-1.02",
+        "klut6 aspdac": 251,
+        "klut6 ours": 508,
+        "size aspdac": 639,
+        "size ours": 515,
+        "xmg improv": "0.19"
+      },
+      {
+        "benchmark": "bar",
+        "klut improv": "0.27",
+        "klut6 aspdac": 888,
+        "klut6 ours": 649,
+        "size aspdac": 3281,
+        "size ours": 3120,
+        "xmg improv": "0.05"
+      },
+      {
+        "benchmark": "div",
+        "klut improv": "-0.61",
+        "klut6 aspdac": 12094,
+        "klut6 ours": 19411,
+        "size aspdac": 29607,
+        "size ours": 40013,
+        "xmg improv": "-0.35"
+      },
+      {
+        "benchmark": "hyp",
+        "klut improv": "0.03",
+        "klut6 aspdac": 50835,
+        "klut6 ours": 49265,
+        "size aspdac": 155349,
+        "size ours": 117131,
+        "xmg improv": "0.25"
+      },
+      {
+        "benchmark": "log2",
+        "klut improv": "0.08",
+        "klut6 aspdac": 8438,
+        "klut6 ours": 7804,
+        "size aspdac": 27936,
+        "size ours": 20431,
+        "xmg improv": "0.27"
+      },
+      {
+        "benchmark": "max",
+        "klut improv": "-0.67",
+        "klut6 aspdac": 745,
+        "klut6 ours": 1247,
+        "size aspdac": 2296,
+        "size ours": 2686,
+        "xmg improv": "-0.17"
+      },
+      {
+        "benchmark": "multiplier",
+        "klut improv": "-0.03",
+        "klut6 aspdac": 5700,
+        "klut6 ours": 5870,
+        "size aspdac": 17508,
+        "size ours": 14588,
+        "xmg improv": "0.17"
+      },
+      {
+        "benchmark": "sin",
+        "klut improv": "0.10",
+        "klut6 aspdac": 1655,
+        "klut6 ours": 1493,
+        "size aspdac": 5100,
+        "size ours": 3746,
+        "xmg improv": "0.27"
+      },
+      {
+        "benchmark": "sqrt",
+        "klut improv": "-0.24",
+        "klut6 aspdac": 6595,
+        "klut6 ours": 8189,
+        "size aspdac": 20130,
+        "size ours": 17446,
+        "xmg improv": "0.13"
+      },
+      {
+        "benchmark": "square",
+        "klut improv": "-0.02",
+        "klut6 aspdac": 3969,
+        "klut6 ours": 4032,
+        "size aspdac": 15070,
+        "size ours": 11451,
+        "xmg improv": "0.24"
+      },
+      {
+        "benchmark": "arbiter",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 3390,
+        "size aspdac": 0,
+        "size ours": 12414,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "cavlc",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 148,
+        "size aspdac": 0,
+        "size ours": 723,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "ctrl",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 37,
+        "size aspdac": 0,
+        "size ours": 129,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "dec",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 297,
+        "size aspdac": 0,
+        "size ours": 351,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "i2c",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 522,
+        "size aspdac": 0,
+        "size ours": 1446,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "int2float",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 65,
+        "size aspdac": 0,
+        "size ours": 261,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "mem_ctrl",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 13837,
+        "size aspdac": 0,
+        "size ours": 43714,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "priority",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 328,
+        "size aspdac": 0,
+        "size ours": 795,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "router",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 113,
+        "size aspdac": 0,
+        "size ours": 269,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "voter",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 3134,
+        "size aspdac": 0,
+        "size ours": 7039,
+        "xmg improv": "-inf"
+      }
+    ],
+    "version": "12d1fa2"
+  },
+  {
+    "entries": [
+      {
+        "benchmark": "adder_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 766,
+        "size aspdac": 0,
+        "size ours": 1152,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "bar_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 1161,
+        "size aspdac": 0,
+        "size ours": 5738,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "div_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 23251,
+        "size aspdac": 0,
+        "size ours": 48584,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "log2_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 15243,
+        "size aspdac": 0,
+        "size ours": 39786,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "max_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 2153,
+        "size aspdac": 0,
+        "size ours": 4923,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "multiplier_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 11668,
+        "size aspdac": 0,
+        "size ours": 28949,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "sin_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 3015,
+        "size aspdac": 0,
+        "size ours": 7223,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "sqrt_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 8945,
+        "size aspdac": 0,
+        "size ours": 19587,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "square_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 8062,
+        "size aspdac": 0,
+        "size ours": 20003,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "arbiter_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 6598,
+        "size aspdac": 0,
+        "size ours": 24634,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "cavlc_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 310,
+        "size aspdac": 0,
+        "size ours": 1320,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "ctrl_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 74,
+        "size aspdac": 0,
+        "size ours": 221,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "dec_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 554,
+        "size aspdac": 0,
+        "size ours": 1087,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "i2c_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 1002,
+        "size aspdac": 0,
+        "size ours": 2751,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "int2float_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 123,
+        "size aspdac": 0,
+        "size ours": 446,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "mem_ctrl_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 25969,
+        "size aspdac": 0,
+        "size ours": 85090,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "priority_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 577,
+        "size aspdac": 0,
+        "size ours": 1586,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "router_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 238,
+        "size aspdac": 0,
+        "size ours": 482,
+        "xmg improv": "-inf"
+      },
+      {
+        "benchmark": "voter_sd",
+        "klut improv": "-inf",
+        "klut6 aspdac": 0,
+        "klut6 ours": 4132,
+        "size aspdac": 0,
+        "size ours": 5419,
+        "xmg improv": "-inf"
+      }
+    ],
+    "version": "49a6b22"
+  },
+  {
+    "entries": [
+      {
+        "benchmark": "AES-expanded_untilsat",
+        "c2rs_area": 87771.5,
+        "equiv": true,
+        "final_area": 91601.0,
+        "init_area": 98145.5
+      },
+      {
+        "benchmark": "AES-non-expanded_unstilsat",
+        "c2rs_area": 105743.5,
+        "equiv": true,
+        "final_area": 113920.0,
+        "init_area": 119367.5
+      },
+      {
+        "benchmark": "DES-expanded_untilsat",
+        "c2rs_area": 40409.5,
+        "equiv": true,
+        "final_area": 49067.5,
+        "init_area": 48138.0
+      },
+      {
+        "benchmark": "DES-non-expanded_untilsat",
+        "c2rs_area": 40609.5,
+        "equiv": true,
+        "final_area": 48700.5,
+        "init_area": 48382.5
+      },
+      {
+        "benchmark": "adder_32bit_untilsat",
+        "c2rs_area": 285.0,
+        "equiv": true,
+        "final_area": 285.0,
+        "init_area": 285.0
+      },
+      {
+        "benchmark": "adder_64bit_untilsat",
+        "c2rs_area": 573.0,
+        "equiv": true,
+        "final_area": 589.0,
+        "init_area": 573.0
+      },
+      {
+        "benchmark": "adder_untilsat",
+        "c2rs_area": 1149.0,
+        "equiv": true,
+        "final_area": 1348.0,
+        "init_area": 1690.5
+      },
+      {
+        "benchmark": "comparator_32bit_signed_lt_untilsat",
+        "c2rs_area": 255.0,
+        "equiv": true,
+        "final_area": 314.0,
+        "init_area": 325.0
+      },
+      {
+        "benchmark": "comparator_32bit_signed_lteq_untilsat",
+        "c2rs_area": 251.0,
+        "equiv": true,
+        "final_area": 389.0,
+        "init_area": 408.0
+      },
+      {
+        "benchmark": "comparator_32bit_unsigned_lt_untilsat",
+        "c2rs_area": 255.0,
+        "equiv": true,
+        "final_area": 314.0,
+        "init_area": 318.0
+      },
+      {
+        "benchmark": "comparator_32bit_unsigned_lteq_untilsat",
+        "c2rs_area": 251.0,
+        "equiv": true,
+        "final_area": 389.0,
+        "init_area": 391.5
+      },
+      {
+        "benchmark": "md5_untilsat",
+        "c2rs_area": 114325.0,
+        "equiv": true,
+        "final_area": 91898.0,
+        "init_area": 112702.5
+      },
+      {
+        "benchmark": "mult_32x32_untilsat",
+        "c2rs_area": 11011.0,
+        "equiv": true,
+        "final_area": 12953.0,
+        "init_area": 11293.0
+      },
+      {
+        "benchmark": "sha-1_untilsat",
+        "c2rs_area": 161578.5,
+        "equiv": true,
+        "final_area": 131403.0,
+        "init_area": 161993.5
+      }
+    ],
+    "version": "76a5c6a"
   }
 ]

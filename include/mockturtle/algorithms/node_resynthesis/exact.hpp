@@ -470,7 +470,7 @@ public:
     spec.add_primitive( a ^ b ); // 66
     spec.add_primitive( a ^ c ); // 3c
     spec.add_primitive( b ^ c ); // 5a
-    spec.add_primitive( a ^ b ^ c ); // 96
+    //spec.add_primitive( a ^ b ^ c ); // 96
 
     /* add non-self dual gate functions */
     if ( !ps.use_only_self_dual_gates )

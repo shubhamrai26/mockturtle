@@ -52,11 +52,11 @@
 template<typename Ntk>
 mockturtle::klut_network lut_map( Ntk const& ntk, uint32_t k = 4 )
 {
-  mockturtle::write_verilog( ntk, "/tmp/network.v" );
-  system( fmt::format( "abc -q \"/tmp/network.v; &get; &if -a -K {}; &put; write_blif /tmp/output.blif\"", k ).c_str() );
+  mockturtle::write_verilog( ntk, "/tmp/sd_network.v" );
+  system( fmt::format( "abc -q \"/tmp/sd_network.v; &get; &if -a -K {}; &put; write_blif /tmp/sd-output.blif\"", k ).c_str() );
   
   mockturtle::klut_network klut;
-  if ( lorina::read_blif( "/tmp/output.blif", mockturtle::blif_reader( klut ) ) != lorina::return_code::success )
+  if ( lorina::read_blif( "/tmp/sd-output.blif", mockturtle::blif_reader( klut ) ) != lorina::return_code::success )
   {
     std::cout << "ERROR 1" << std::endl;
     std::abort();
@@ -84,7 +84,7 @@ int main()
   
   /* load database from file */
   mockturtle::xmg_network db;
-  if ( read_verilog( "xmg_npn4_db.v", mockturtle::verilog_reader( db ) ) != lorina::return_code::success )
+     if ( read_verilog( "xmg_without_sd.v", mockturtle::verilog_reader( db ) ) != lorina::return_code::success )
   {
     std::cout << "ERROR" << std::endl;
     std::abort();
@@ -98,10 +98,10 @@ int main()
   /* generate resynthesis strategy */
 
   /* option 1: X3MG strategy using databse from file */
-  //mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> npn_resyn( mockturtle::detail::to_index_list( db ) );
+  mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> npn_resyn( mockturtle::detail::to_index_list( db ) );
 
   /* option 2: X2MG strategy */
-  mockturtle::xmg_npn_resynthesis npn_resyn;
+  //mockturtle::xmg_npn_resynthesis npn_resyn;
     
   experiments::experiment<std::string, uint32_t, uint32_t, std::string, uint32_t, uint32_t, std::string>
     exp( "cut_rewriting", "benchmark", "size aspdac", "size ours", "xmg improv", "klut6 aspdac", "klut6 ours", "klut improv" );

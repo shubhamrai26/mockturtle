@@ -80,6 +80,7 @@ public:
                std::cout << " stored at PO #" << ntk.num_pos() << std::endl;
              }
              ntk.create_po( s );
+             return false;
            } );
   }
 
