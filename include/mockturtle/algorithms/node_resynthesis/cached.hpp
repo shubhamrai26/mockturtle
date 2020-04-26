@@ -191,10 +191,10 @@ public:
           std::copy( _existing_signals.begin(), _existing_signals.end(), signals.begin() + _initial_size );
           fn( cleanup_dangling( _cache.get_view( key ), ntk, signals.begin(), signals.end() ).front() );
         }
+        return false;
       };
 
       _resyn_fn( _cache.network(), function, _cache.pis().begin(), _cache.pis().begin() + function.num_vars(), on_signal );
-
       if ( !found_one )
       {
         _blacklist_cache.insert( {function, _blacklist_cache_info} );
@@ -238,7 +238,7 @@ public:
       // TODO assert or warn?
     }
   }
-    
+
   void report() const
   {
     fmt::print( "[i] cache hits              = {}\n", _cache_hits );

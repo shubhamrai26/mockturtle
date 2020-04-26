@@ -255,6 +255,11 @@ void example3()
 namespace mockturtle
 {
 
+struct exact_techmap_params
+{
+  uint32_t conflict_limit = 1000;
+};
+
 template<class Ntk = xmg_network>
 class exact_techmap_resynthesis
 {
@@ -262,12 +267,13 @@ public:
   using signal = mockturtle::signal<Ntk>;
 
 public:
-  explicit exact_techmap_resynthesis()
+  explicit exact_techmap_resynthesis( exact_techmap_params const& ps = {} )
+    : ps( ps )
   {
   }
 
   template<typename LeavesIterator, typename TT, typename Fn>
-  void operator()( Ntk& ntk, TT const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn ) const
+  bool operator()( Ntk& ntk, TT const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn ) const
   {
     std::cout << function.num_vars() << " "; kitty::print_hex( function ); std::cout << std::endl;
 
@@ -277,6 +283,7 @@ public:
 
     percy::chain chain;
     percy::spec spec;
+    spec.conflict_limit = int32_t( ps.conflict_limit );
     spec.verbosity = 0;
     spec.fanin = 3;
 
@@ -407,10 +414,14 @@ public:
       auto const output_signal = output_index == 0u ? ntk.get_constant( false ) : signals[output_index - 1];
       if ( !fn( chain.is_output_inverted( 0 ) ^ normal ? output_signal : !output_signal ) )
       {
-        return; /* quit */
+        return false; /* quit */
       }
     }
+    return false;
   }
+
+private:
+  exact_techmap_params const& ps;
 }; /* exact_xmg_resynthesis */
 
 } /* mockturtle */
@@ -448,18 +459,23 @@ void example5()
 {
   using namespace experiments;
 
-  /* load database from file */
-  mockturtle::xmg_network techlib_db;
-  read_verilog( "techlib.v", mockturtle::verilog_reader( techlib_db ) );
-
-  mockturtle::xmg_npn_resynthesis xmg2_resyn;
-  mockturtle::exact_techmap_resynthesis<mockturtle::xmg_network> exact;
-  mockturtle::cached_resynthesis<mockturtle::xmg_network, decltype( exact )> cached_exact( exact, 5u, "cache.v" );
+  uint32_t const size = 6u;
+  
+  /* prepare XMG DB */
+  mockturtle::exact_xmg_resynthesis<mockturtle::xmg_network> xmg2_exact( {.use_xor3 = false} );
+  mockturtle::cached_resynthesis<mockturtle::xmg_network, decltype( xmg2_exact )> cached_xmg2_exact( xmg2_exact, size, "exact_xmg2_cache6.v" ); 
+  
+  mockturtle::exact_xmg_resynthesis<mockturtle::xmg_network> xmg3_exact( {.use_xor3 = true} );
+  mockturtle::cached_resynthesis<mockturtle::xmg_network, decltype( xmg3_exact )> cached_xmg3_exact( xmg3_exact, size, "exact_xmg3_cache6.v" ); 
+  
+  /* prepare exact techlib resyn */
+  mockturtle::exact_techmap_resynthesis<mockturtle::xmg_network> techlib_exact;
+  mockturtle::cached_resynthesis<mockturtle::xmg_network, decltype( techlib_exact )> cached_techlib_exact( techlib_exact, size, "exact_techlib_cache6.v" );
 
   experiments::experiment<std::string, uint32_t, uint32_t, bool>
     exp( "shubham", "benchmark", "LUTs", "TechLib", "CEC" );
 
-  for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic ) )
+  for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic & ~experiments::hyp ) )
   {
     fmt::print( "[i] processing {}\n", benchmark );
 
@@ -473,17 +489,17 @@ void example5()
     }
 
     /* LUT map AIG into k-LUT network */
-    auto klut = lut_map( aig, 4u );
+    auto klut = lut_map( aig, size );
 
     /* translate to XMG */
     mockturtle::xmg_network xmg;
-    xmg = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg2_resyn );
+    xmg = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, cached_xmg3_exact );
 
     /* rewrite KLUT into tech-mapped KLUT */
     mockturtle::cut_rewriting_params ps;
-    ps.cut_enumeration_ps.cut_size = 5u;
+    ps.cut_enumeration_ps.cut_size = size;
 
-    auto new_xmg = cut_rewriting( xmg, exact, ps );
+    auto new_xmg = cut_rewriting( xmg, cached_techlib_exact, ps );
     auto cec = abc_cec( xmg, benchmark );
 
     exp( benchmark, klut.size(), new_xmg.size(), cec );
