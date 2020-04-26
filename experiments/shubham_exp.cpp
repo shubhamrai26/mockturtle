@@ -32,6 +32,7 @@
 #include <mockturtle/algorithms/lut_mapping.hpp>
 #include <mockturtle/algorithms/node_resynthesis.hpp>
 #include <mockturtle/algorithms/node_resynthesis/exact.hpp>
+#include <mockturtle/algorithms/node_resynthesis/cached.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xmg4_npn.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xmg_npn.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
@@ -53,7 +54,7 @@ mockturtle::klut_network lut_map( Ntk const& ntk, uint32_t k = 4 )
 {
   mockturtle::write_verilog( ntk, "/tmp/network.v" );
   system( fmt::format( "abc -q \"/tmp/network.v; &get; &if -a -K {}; &put; write_blif /tmp/output.blif\"", k ).c_str() );
-  
+
   mockturtle::klut_network klut;
   if ( lorina::read_blif( "/tmp/output.blif", mockturtle::blif_reader( klut ) ) != lorina::return_code::success )
   {
@@ -75,11 +76,9 @@ void example1()
     classes.insert( std::get<0>( res ) );
     kitty::next_inplace( tt );
   } while ( !kitty::is_const0( tt ) );
-
   std::cout << "[i] enumerated "
             << ( 1 << ( 1 << tt.num_vars() ) ) << " functions into "
-            << classes.size() << " classes." << std::endl;  
-
+            << classes.size() << " classes." << std::endl;
 
   /* generate database with exact XMG synthesis */
   mockturtle::xmg_network xmg;
@@ -100,17 +99,20 @@ void example2()
   using namespace experiments;
 
   /* load database from file */
-  mockturtle::xmg_network xmg2_db, xmg3_db, xmgs_db;
+  mockturtle::xmg_network xmg2_db, xmg3_db, xmgs_db, techlib_db;
   read_verilog( "xmg2_db.v", mockturtle::verilog_reader( xmg2_db ) );
   read_verilog( "xmg3_db.v", mockturtle::verilog_reader( xmg3_db ) );
   read_verilog( "xmgs_db.v", mockturtle::verilog_reader( xmgs_db ) );
+  read_verilog( "techlib.v", mockturtle::verilog_reader( techlib_db ) );
 
   /* option 1: XMG strategy using databse from file */
   mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmg2_resyn( mockturtle::detail::to_index_list( xmg2_db ) );
   mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmg3_resyn( mockturtle::detail::to_index_list( xmg3_db ) );
   mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> xmgs_resyn( mockturtle::detail::to_index_list( xmgs_db ) );
-    
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t> exp( "shubham", "benchmark", "LUTs", "XMG2", "XMG3", "XMGs" );
+  mockturtle::xmg4_npn_resynthesis<mockturtle::xmg_network> techlib_resyn( mockturtle::detail::to_index_list( techlib_db ) );
+
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, bool>
+    exp( "shubham", "benchmark", "LUTs", "XMG2", "XMG3", "XMGs", "TechLib", "CEC" );
 
   for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic ) )
   {
@@ -129,12 +131,25 @@ void example2()
     auto klut = lut_map( aig, 4u );
 
     /* resynthesize klut with resynthesis strategies */
-    mockturtle::xmg_network xmg2, xmg3, xmgs;
+    mockturtle::xmg_network xmg2, xmg3, xmgs, techlib;
     xmg2 = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg2_resyn );
     xmg3 = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg3_resyn );
     xmgs = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmgs_resyn );
+    techlib = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, techlib_resyn );
 
-    exp( benchmark, klut.size(), xmg2.size(), xmg3.size(), xmgs.size() );
+    bool cec = true;
+    if ( benchmark != "hyp" )
+    {
+      cec &= abc_cec( xmg2, benchmark );
+      cec &= abc_cec( xmg3, benchmark );
+      cec &= abc_cec( xmgs, benchmark );
+      cec &= abc_cec( techlib, benchmark );
+    }
+
+    exp( benchmark, klut.size(), xmg2.size(), xmg3.size(), xmgs.size(), techlib.size(), cec );
+
+    exp.save();
+    exp.table();
   }
 
   exp.save();
@@ -144,7 +159,7 @@ void example2()
 void example3()
 {
   using namespace experiments;
-  
+
   /* Winston & Mathias's results from ASP-DAC'17 */
   std::map<std::string, std::tuple<uint32_t, uint32_t>> aspdac17_xmg;
   aspdac17_xmg.emplace( "adder", std::make_tuple( 639, 251 ) );
@@ -157,7 +172,7 @@ void example3()
   aspdac17_xmg.emplace( "sin", std::make_tuple( 5100, 1655 ) );
   aspdac17_xmg.emplace( "sqrt", std::make_tuple( 20130, 6595 ) );
   aspdac17_xmg.emplace( "square", std::make_tuple( 15070, 3969 ) );
-  
+
   /* load database from file */
   mockturtle::xmg_network db;
   if ( read_verilog( "xmg_npn4_db.v", mockturtle::verilog_reader( db ) ) != lorina::return_code::success )
@@ -170,7 +185,7 @@ void example3()
   {
     std::cout << "[i] DB loaded" << std::endl;
   }
-  
+
   /* generate resynthesis strategy */
 
   /* option 1: X3MG strategy using databse from file */
@@ -178,7 +193,7 @@ void example3()
 
   /* option 2: X2MG strategy */
   // mockturtle::xmg_npn_resynthesis npn_resyn;
-    
+
   experiments::experiment<std::string, uint32_t, uint32_t, std::string, uint32_t, uint32_t, std::string>
     exp( "cut_rewriting", "benchmark", "size aspdac", "size ours", "xmg improv", "klut6 aspdac", "klut6 ours", "klut improv" );
   for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic ) )
@@ -210,11 +225,11 @@ void example3()
       // mockturtle::lut_mapping_params ps;
       // ps.cut_enumeration_ps.cut_size = 4;
       // ps.cut_enumeration_ps.cut_limit = 16;
-      // 
+      //
       // mockturtle::mapping_view<mockturtle::xmg_network, true> mapped_xmg{xmg};
       // mockturtle::lut_mapping<decltype( mapped_xmg ), true>( mapped_xmg, ps );
       // const auto new_klut = *mockturtle::collapse_mapped_network<mockturtle::klut_network>( mapped_xmg );
-      
+
       if ( new_klut.size() >= klut_size_before )
         break;
 
@@ -222,7 +237,7 @@ void example3()
     }
 
     auto const klut6 = lut_map( xmg, 6u );
-      
+
     std::cout << "final XMG size = " << xmg.size() << std::endl;
     std::cout << "final KLUT-6 size = " << klut6.size() << std::endl;
 
@@ -232,13 +247,257 @@ void example3()
          std::get<1>( aspdac17_xmg[benchmark] ), klut6.size(),
          fmt::format( "{:3.2f}", (double(std::get<1>( aspdac17_xmg[benchmark] ) ) - klut6.size())/std::get<1>( aspdac17_xmg[benchmark] ) ) );
   }
-  
+
+  exp.save();
+  exp.table();
+}
+
+namespace mockturtle
+{
+
+template<class Ntk = xmg_network>
+class exact_techmap_resynthesis
+{
+public:
+  using signal = mockturtle::signal<Ntk>;
+
+public:
+  explicit exact_techmap_resynthesis()
+  {
+  }
+
+  template<typename LeavesIterator, typename TT, typename Fn>
+  void operator()( Ntk& ntk, TT const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn ) const
+  {
+    std::cout << function.num_vars() << " "; kitty::print_hex( function ); std::cout << std::endl;
+
+    static_assert( kitty::is_complete_truth_table<TT>::value, "Truth table must be complete" );
+    auto const tt = function.num_vars() < 3u ? kitty::extend_to( function, 3u ) : function;
+    bool const normal = kitty::is_normal( tt );
+
+    percy::chain chain;
+    percy::spec spec;
+    spec.verbosity = 0;
+    spec.fanin = 3;
+
+    /* specify local normalized gate primitives */
+    kitty::dynamic_truth_table const0{3};
+    kitty::dynamic_truth_table a{3};
+    kitty::dynamic_truth_table b{3};
+    kitty::dynamic_truth_table c{3};
+    kitty::create_nth_var( a, 0 );
+    kitty::create_nth_var( b, 1 );
+    kitty::create_nth_var( c, 2 );
+
+    spec.add_primitive( const0 ); // 00
+    spec.add_primitive( a ); // aa
+    spec.add_primitive( b ); // cc
+    spec.add_primitive( c ); // f0
+
+    spec.add_primitive( a & b ); // 88
+    spec.add_primitive( ~a & b ); // 44
+    spec.add_primitive( a & ~b ); // 22
+    spec.add_primitive( a & c ); // a0
+    spec.add_primitive( ~a & c ); // 50
+    spec.add_primitive( a & ~c ); // 0a
+    spec.add_primitive( b & c ); // c0
+    spec.add_primitive( ~b & c ); // 30
+    spec.add_primitive( b & ~c ); // 0c
+
+    spec.add_primitive( kitty::ternary_majority( a, b, c ) ); // e8
+    spec.add_primitive( kitty::ternary_majority( ~a, b, c ) ); // d4
+    spec.add_primitive( kitty::ternary_majority( a, ~b, c ) ); // b2
+    spec.add_primitive( kitty::ternary_majority( a, b, ~c ) ); // 8e
+
+    spec.add_primitive( a ^ b ); // 66
+    spec.add_primitive( a ^ c ); // 5a
+    spec.add_primitive( b ^ c ); // 3c
+    spec.add_primitive( a ^ b ^ c ); // 96
+
+    percy::bsat_wrapper solver;
+    percy::ssv_encoder encoder(solver);
+
+    spec[0] = normal ? tt : ~tt;
+
+    for ( auto i = 0u; i < 1u; ++i )
+    {
+      auto const result = percy::next_struct_solution( spec, chain, solver, encoder );
+      if ( result != percy::success )
+        break;
+
+      assert( result == percy::success );
+
+      auto const sim = chain.simulate();
+      assert( chain.simulate()[0] == spec[0] );
+
+      std::vector<signal> signals( tt.num_vars(), ntk.get_constant( false ) );
+      std::copy( begin, end, signals.begin() );
+
+      for ( auto i = 0; i < chain.get_nr_steps(); ++i )
+      {
+        auto const c1 = signals[chain.get_step( i )[0]];
+        auto const c2 = signals[chain.get_step( i )[1]];
+        auto const c3 = signals[chain.get_step( i )[2]];
+
+        switch( chain.get_operator( i )._bits[0] )
+        {
+        case 0x00:
+          signals.emplace_back( ntk.get_constant( false ) );
+          break;
+        case 0xe8:
+          signals.emplace_back( ntk.create_maj( c1,  c2,  c3 ) );
+          break;
+        case 0xd4:
+          signals.emplace_back( ntk.create_maj( !c1,  c2,  c3 ) );
+          break;
+        case 0xb2:
+          signals.emplace_back( ntk.create_maj( c1,  !c2,  c3 ) );
+          break;
+        case 0x8e:
+          signals.emplace_back( ntk.create_maj( c1,  c2,  !c3 ) );
+          break;
+        case 0x66:
+          signals.emplace_back( ntk.create_xor( c1,  c2 ) );
+          break;
+        case 0x5a:
+          signals.emplace_back( ntk.create_xor( c1,  c3 ) );
+          break;
+        case 0x3c:
+          signals.emplace_back( ntk.create_xor( c2,  c3 ) );
+          break;
+        case 0x96:
+          signals.emplace_back( ntk.create_xor3( c1,  c2,  c3 ) );
+          break;
+        case 0x88:
+          signals.emplace_back( ntk.create_and( c1, c2 ) );
+          break;
+        case 0x44:
+          signals.emplace_back( ntk.create_and( !c1, c2 ) );
+          break;
+        case 0x22:
+          signals.emplace_back( ntk.create_and( c1, !c2 ) );
+          break;
+        case 0xa0:
+          signals.emplace_back( ntk.create_and( c1, c3 ) );
+          break;
+        case 0x50:
+          signals.emplace_back( ntk.create_and( !c1, c3 ) );
+          break;
+        case 0x0a:
+          signals.emplace_back( ntk.create_and( c1, !c3 ) );
+          break;
+        case 0xc0:
+          signals.emplace_back( ntk.create_and( c2, c3 ) );
+          break;
+        case 0x30:
+          signals.emplace_back( ntk.create_and( !c2, c3 ) );
+          break;
+        case 0x0c:
+          signals.emplace_back( ntk.create_and( c2, !c3 ) );
+          break;
+        default:
+          std::cerr << "[e] unsupported operation " << kitty::to_hex( chain.get_operator( i ) ) << "\n";
+          assert( false );
+          break;
+        }
+      }
+
+      assert( chain.get_outputs().size() > 0u );
+      uint32_t const output_index = ( chain.get_outputs()[0u] >> 1u );
+      auto const output_signal = output_index == 0u ? ntk.get_constant( false ) : signals[output_index - 1];
+      if ( !fn( chain.is_output_inverted( 0 ) ^ normal ? output_signal : !output_signal ) )
+      {
+        return; /* quit */
+      }
+    }
+  }
+}; /* exact_xmg_resynthesis */
+
+} /* mockturtle */
+
+void example4()
+{
+  /* enumerate NPN representatives */
+  std::unordered_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>> classes;
+  kitty::dynamic_truth_table tt( 4u );
+  do
+  {
+    const auto res = kitty::exact_npn_canonization( tt );
+    classes.insert( std::get<0>( res ) );
+    kitty::next_inplace( tt );
+  } while ( !kitty::is_const0( tt ) );
+  std::cout << "[i] enumerated "
+            << ( 1 << ( 1 << tt.num_vars() ) ) << " functions into "
+            << classes.size() << " classes." << std::endl;
+
+  /* generate database with exact XMG synthesis */
+  mockturtle::xmg_network xmg;
+  mockturtle::exact_techmap_resynthesis<mockturtle::xmg_network> exact;
+  mockturtle::detail::database_generator dbgen( xmg, exact, {} );
+  for ( const auto& f : classes )
+  {
+    dbgen.add_function( f );
+
+    std::cout << ".";
+    std::cout.flush();
+  }
+  mockturtle::write_verilog( xmg, "db.v" );
+}
+
+void example5()
+{
+  using namespace experiments;
+
+  /* load database from file */
+  mockturtle::xmg_network techlib_db;
+  read_verilog( "techlib.v", mockturtle::verilog_reader( techlib_db ) );
+
+  mockturtle::xmg_npn_resynthesis xmg2_resyn;
+  mockturtle::exact_techmap_resynthesis<mockturtle::xmg_network> exact;
+  mockturtle::cached_resynthesis<mockturtle::xmg_network, decltype( exact )> cached_exact( exact, 5u, "cache.v" );
+
+  experiments::experiment<std::string, uint32_t, uint32_t, bool>
+    exp( "shubham", "benchmark", "LUTs", "TechLib", "CEC" );
+
+  for ( auto const& benchmark : epfl_benchmarks( experiments::arithmetic ) )
+  {
+    fmt::print( "[i] processing {}\n", benchmark );
+
+    /* read aig */
+    mockturtle::aig_network aig;
+    if ( lorina::read_aiger( experiments::benchmark_path( benchmark ), mockturtle::aiger_reader( aig ) ) != lorina::return_code::success )
+    {
+      std::cout << "ERROR 2" << std::endl;
+      std::abort();
+      return;
+    }
+
+    /* LUT map AIG into k-LUT network */
+    auto klut = lut_map( aig, 4u );
+
+    /* translate to XMG */
+    mockturtle::xmg_network xmg;
+    xmg = mockturtle::node_resynthesis<mockturtle::xmg_network>( klut, xmg2_resyn );
+
+    /* rewrite KLUT into tech-mapped KLUT */
+    mockturtle::cut_rewriting_params ps;
+    ps.cut_enumeration_ps.cut_size = 5u;
+
+    auto new_xmg = cut_rewriting( xmg, exact, ps );
+    auto cec = abc_cec( xmg, benchmark );
+
+    exp( benchmark, klut.size(), new_xmg.size(), cec );
+
+    exp.save();
+    exp.table();
+  }
+
   exp.save();
   exp.table();
 }
 
 int main()
 {
-  example2();
+  example5();
   return 0;
 }
