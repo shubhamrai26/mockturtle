@@ -987,5 +987,19 @@
       }
     ],
     "version": "76a5c6a"
+  },
+  {
+    "entries": [
+      {
+        "benchmark": "adder",
+        "klut6_aspdac": 251,
+        "klut6_ours": 450,
+        "klut_improv": "-0.79",
+        "size_aspdac": 639,
+        "size_ours": 640,
+        "xmg_improv": "-0.00"
+      }
+    ],
+    "version": "c4d5a06"
   }
 ]

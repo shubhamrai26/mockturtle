@@ -136,7 +136,7 @@ private:
     }
   };
 
-  bool is_blacklisted( kitty::dynamic_truth_table const& tt )
+  bool is_blacklisted( kitty::dynamic_truth_table const& tt ) const
   {
     auto it = _blacklist_cache.find( {tt, _blacklist_cache_info} );
 
@@ -160,7 +160,7 @@ private:
 
 public:
   template<typename LeavesIterator, typename Fn>
-  void operator()( Ntk& ntk, kitty::dynamic_truth_table const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn )
+  void operator()( Ntk& ntk, kitty::dynamic_truth_table const& function, LeavesIterator begin, LeavesIterator end, Fn&& fn ) const
   {
     if ( auto const key = std::make_pair( function, _existing_functions );
          _cache.has( key ) )
@@ -191,10 +191,10 @@ public:
           std::copy( _existing_signals.begin(), _existing_signals.end(), signals.begin() + _initial_size );
           fn( cleanup_dangling( _cache.get_view( key ), ntk, signals.begin(), signals.end() ).front() );
         }
+        return false;
       };
 
       _resyn_fn( _cache.network(), function, _cache.pis().begin(), _cache.pis().begin() + function.num_vars(), on_signal );
-
       if ( !found_one )
       {
         _blacklist_cache.insert( {function, _blacklist_cache_info} );
@@ -238,7 +238,7 @@ public:
       // TODO assert or warn?
     }
   }
-    
+
   void report() const
   {
     fmt::print( "[i] cache hits              = {}\n", _cache_hits );
@@ -293,8 +293,8 @@ private:
 
 private:
   ResynthesisFn _resyn_fn;
-  network_cache<Ntk, cache_key_t, cache_hash> _cache;
-  std::unordered_set<blacklist_cache_key_t, blacklist_cache_hash, blacklist_cache_equal> _blacklist_cache;
+  mutable network_cache<Ntk, cache_key_t, cache_hash> _cache;
+  mutable std::unordered_set<blacklist_cache_key_t, blacklist_cache_hash, blacklist_cache_equal> _blacklist_cache;
   std::string _cache_filename;
   BlacklistCacheInfo _blacklist_cache_info;
   uint32_t _initial_size{};
@@ -303,7 +303,7 @@ private:
   std::vector<signal<Ntk>> _existing_signals;
 
   /* statistics */
-  uint32_t _cache_hits{};
-  uint32_t _cache_misses{};
+  mutable uint32_t _cache_hits{};
+  mutable uint32_t _cache_misses{};
 };
 } /* namespace mockturtle */

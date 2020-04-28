@@ -1,17 +1,22 @@
 #include <fmt/format.h>
 #include <lorina/lorina.hpp>
 #include<mockturtle/networks/xmg.hpp>
+#include<mockturtle/networks/klut.hpp>
 #include <mockturtle/properties/xmgcost.hpp>
 #include <mockturtle/algorithms/xmg_resub.hpp>
 #include <mockturtle/algorithms/cleanup.hpp>
 #include <mockturtle/algorithms/resubstitution.hpp>
 #include <mockturtle/algorithms/node_resynthesis.hpp>
+#include <mockturtle/algorithms/node_resynthesis/xmg4_npn.hpp>
+#include <mockturtle/algorithms/node_resynthesis/xmg3_npn.hpp>
 #include <mockturtle/algorithms/xmg_optimization.hpp>
 #include <mockturtle/algorithms/cut_rewriting.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xmg3_npn.hpp>
 #include <mockturtle/algorithms/xmg_algebraic_rewriting.hpp>
 #include<iostream>
 #include <mockturtle/io/write_verilog.hpp>
+#include <mockturtle/io/verilog_reader.hpp>
+#include <mockturtle/io/blif_reader.hpp>
 #include<time.h>
 #include <mockturtle/views/depth_view.hpp>
 
@@ -162,11 +167,11 @@ opt_parameters call_rw( xmg_network& xmg)
     
     /* load database from file */
     mockturtle::xmg_network db;
-    if ( read_verilog( "xmg3_without_sd.v", mockturtle::verilog_reader( db ) ) != lorina::return_code::success )
+    if ( read_verilog( "xmg3_with_sd.v", mockturtle::verilog_reader( db ) ) != lorina::return_code::success )
     {
         std::cout << "ERROR" << std::endl;
         std::abort();
-        return -1;
+        //return;// nullptr;
     }
     else
     {
@@ -183,5 +188,20 @@ opt_parameters call_rw( xmg_network& xmg)
     oparam.opt_time = to_seconds( cr_st.time_total );
 
     return oparam;
+}
+
+template<typename Ntk>
+mockturtle::klut_network lut_map( Ntk const& ntk, uint32_t k = 4 )
+{
+  mockturtle::write_verilog( ntk, "/tmp/ex_network.v" );
+  system( fmt::format( "abc -q \"/tmp/ex_network.v; &get; &if -a -K {}; &put; write_blif /tmp/ex_output.blif\"", k ).c_str() );
+  mockturtle::klut_network klut;
+  if ( lorina::read_blif( "/tmp/ex_output.blif", mockturtle::blif_reader( klut ) ) != lorina::return_code::success )
+  {
+    std::cout << "ERROR 1" << std::endl;
+    std::abort();
+    return klut;
+  }
+  return klut;
 }
 

@@ -33,6 +33,9 @@
 
 #pragma once
 
+#include <kitty/properties.hpp>
+#include <kitty/print.hpp>
+
 #include <vector>
 
 namespace mockturtle::detail
@@ -41,6 +44,7 @@ namespace mockturtle::detail
 struct database_generator_params
 {
   uint32_t num_vars{4u};
+  bool multiple_candidates{false};
   bool verbose{false};
 }; /* database_generator_param */
 
@@ -51,7 +55,7 @@ public:
   using signal = mockturtle::signal<Ntk>;
 
 public:
-  explicit database_generator( Ntk& ntk, ResynFn const& resyn, database_generator_params const& ps )
+  explicit database_generator( Ntk& ntk, ResynFn const& resyn, database_generator_params const& ps = {} )
     : ntk( ntk )
     , resyn( resyn )
     , ps( ps )
@@ -80,7 +84,7 @@ public:
                std::cout << " stored at PO #" << ntk.num_pos() << std::endl;
              }
              ntk.create_po( s );
-             return false;
+             return ps.multiple_candidates;
            } );
   }
 

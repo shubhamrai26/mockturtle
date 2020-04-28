@@ -104,8 +104,8 @@ public:
   xmg4_npn_resynthesis( std::vector<uint32_t> const& subgraphs, xmg4_npn_resynthesis_params const& ps = {}, xmg4_npn_resynthesis_stats* pst = nullptr )
       : ps( ps )
       , pst( pst )
-      , subgraphs( subgraphs )
       , _repr( 1u << 16u )
+      , subgraphs( subgraphs )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_get_constant_v<Ntk>, "Ntk does not implement the get_constant method" );
