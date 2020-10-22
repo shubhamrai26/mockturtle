@@ -31,6 +31,7 @@
 #include <mockturtle/algorithms/collapse_mapped.hpp>
 #include <mockturtle/algorithms/equivalence_checking.hpp>
 #include <mockturtle/algorithms/lut_mapping.hpp>
+#include <mockturtle/algorithms/tech_mapping.hpp>
 #include <mockturtle/algorithms/miter.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
 #include <mockturtle/networks/aig.hpp>
