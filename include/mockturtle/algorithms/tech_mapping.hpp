@@ -50,6 +50,35 @@
 namespace mockturtle
 {
 
+
+struct tech_mapping_params
+{
+    bool verbose{false};
+};
+
+
+struct tech_mapping_stats
+{
+  /*! \brief Total runtime. */
+  stopwatch<>::duration time_total{0};
+
+  void report() const
+  {
+    std::cout << fmt::format( "[i] total time = {:>5.2f} secs\n", to_seconds( time_total ) );
+  }
+};
+
+namespace detail
+{
+   
+    
+std::string find_formula(std::string a)
+{
+    uint32_t lp = a.find( "O=" );
+    return a.substr(lp + 2);
+
+}
+
 inline char * chomp( char *s )
 {
     char *a, *b, *c;
@@ -70,63 +99,62 @@ inline char * chomp( char *s )
 
 
 
-struct tech_mapping_params
-{
-    bool verbose{false};
-};
 
-struct gate_struct_t
-{
-    std::string name;         /* Name of the gate */
-    double area;              /* given area of the gate */
-    double delay;             /* given delay of the gate */
-    std::string formula;      /* the given formula in SOP format */
-    //std::list<T> pins;         /* Total number of pins = input + output */
-    std::string out_name;     /* Name of the output pin */
-    uint8_t n_inputs;         /* number of inputs */ 
-    bool gate0;               /* constant 0 gate */ 
-    bool gate1;               /* constant 1 gate */
-    bool gate_inv;            /* inverter gate */
-    bool universal_gate'      /* To see if you have a gate which is universal */ 
-};
-
-struct tech_mapping_stats
-{
-  /*! \brief Total runtime. */
-  stopwatch<>::duration time_total{0};
-
-  void report() const
-  {
-    std::cout << fmt::format( "[i] total time = {:>5.2f} secs\n", to_seconds( time_total ) );
-  }
-};
-
-namespace detail
-{
-
-template<class Ntk, bool StoreFunction, typename CutData>
+//template<class Ntk, bool StoreFunction, typename CutData>
+template<class Ntk> 
 class tech_mapping_impl
 {
 public:
-    using network_cuts_t = network_cuts<Ntk, StoreFunction, CutData>;
-    using cut_t = typename network_cuts_t::cut_t;
-    std::vector<gate_struct_t> gate_library;
+    //using network_cuts_t = network_cuts<Ntk, StoreFunction, CutData>;
+    //using cut_t = typename network_cuts_t::cut_t;
 
 public:
-    tech_mapping_impl(Ntk& ntk, tech_mapping_params const& ps, tech_mapping_stats& st, std::string tech_lib)
+    tech_mapping_impl(Ntk& ntk, tech_mapping_params const& ps, tech_mapping_stats& st, std::string techlib)
         : ntk(ntk), 
           ps(ps),
           st(st),
+          techlib(std::move(techlib))
     {}
 
-    void run(std::string ifname)
+    struct gate_struct_t
+    {
+        std::string name;         /* Name of the gate */
+        double area;              /* given area of the gate */
+        double delay;             /* given delay of the gate */
+        std::string formula;      /* the given formula in SOP format */
+        //std::list<T> pins;      /* Total number of pins = input + output */
+        std::string out_name;     /* Name of the output pin */
+        uint8_t n_inputs;         /* number of inputs */ 
+        bool gate0;               /* constant 0 gate */ 
+        bool gate1;               /* constant 1 gate */
+        bool gate_inv;            /* inverter gate */
+        bool universal_gate;      /* To see if you have a gate which is universal */ 
+
+        gate_struct_t ()
+            :area(0),
+            delay(0)
+        {
+        }
+
+        gate_struct_t(const gate_struct_t &g)
+        {
+            name = std::move( g.name );
+            area = g.area;
+            delay = g.delay;
+            formula = std::move( g.formula );
+            out_name = std::move( g.out_name );
+        }
+
+    };
+
+    void run()
     {
         stopwatch t(st.time_total);
         /* compute and save topological order */
-        //top_order.reserve( ntk.size() );
-        //topo_view<Ntk>( ntk ).foreach_node( [this]( auto n ) {
-        //        top_order.push_back( n );
-        //        } );
+        top_order.reserve( ntk.size() );
+        topo_view<Ntk>( ntk ).foreach_node( [this]( auto n ) {
+                top_order.push_back( n );
+                } );
 
         //init_nodes();
         ////print_state();
@@ -144,20 +172,19 @@ public:
         //    compute_mapping<true>();
         //}
 
-        gate_library = read_genlib(ifname)
+        gate_library = read_genlib();
         //derive_mapping();
     }
 
-private:
-    std::vector<gate_struct_t> read_genlib(std::string techlib)
+    std::vector<gate_struct_t> read_genlib()
     {
         std::ifstream inf(techlib);
         if (!inf.is_open())
         {
-            std::cout << "[i] Unable to open {} file\n";
+            std::cout << fmt::format( "[i] Unable to open {} file\n", techlib);
             return {};
         }
-        std::vector<gate_struct_t_> gate_library;
+        std::vector<gate_struct_t> gate_library;
         std::string line;
         while ( std::getline (inf,line) )
         {
@@ -166,18 +193,18 @@ private:
         }
         std::cout << "Total gates read = " << gate_library.size() << std::endl;
         return gate_library;
-
     }
 
-    /* Read the genlib 
-       Please note that the genlib file should not have any comments */
-    gate_struct_t_ populate_gate_entry(std::string str)
+    /*! \brief Read the genlib 
+     *
+     * Please note that the genlib file should not have any comments 
+     */
+    gate_struct_t populate_gate_entry(std::string str)
     {
-        if (str.empty())
-            return {};
+        //if (str.empty())
+        //    return {};
 
-        gate_struct_t_ g;
-        char seps[] = "-";
+        gate_struct_t g;
         char *token;
 
         token =  strtok( &str[0], " \t\r\n");
@@ -198,12 +225,26 @@ private:
         return g;
     }
 
-    // make the library and include the concept of phases 
-    // create cuts for any network 
-    // Map those cuts to the list of gates in the library 
-    // Iteratively see which gates to pick so that you have the least area and delay of the overall network
 
-} /* class tech_mapping_impl */
+private:
+  Ntk& ntk;
+  tech_mapping_params const& ps;
+  tech_mapping_stats& st;
+
+  uint32_t iteration{0}; /* current mapping iteration */
+  uint32_t delay{0};     /* current delay of the mapping */
+  uint32_t area{0};      /* current area of the mapping */
+
+  std::vector<gate_struct_t> gate_library;
+  std::string techlib;   /* technology library */
+  std::vector<node<Ntk>> top_order;
+
+  // make the library and include the concept of phases 
+  // create cuts for any network 
+  // Map those cuts to the list of gates in the library 
+  // Iteratively see which gates to pick so that you have the least area and delay of the overall network
+
+}; /* class tech_mapping_impl */
 
 } /* namespace detail */
 /*! \brief tech mapping.
@@ -248,7 +289,8 @@ private:
       mapping command ``&mf`` in ABC.
    \endverbatim
  */
-template<class Ntk, bool StoreFunction = false, typename CutData = cut_enumeration_mf_cut>
+//template<class Ntk, bool StoreFunction = false, typename CutData = cut_enumeration_mf_cut>
+template<class Ntk>
 void tech_mapping( Ntk& ntk, tech_mapping_params const& ps = {}, tech_mapping_stats* pst = nullptr, std::string ifname = "rfet.genlib")
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
@@ -261,13 +303,14 @@ void tech_mapping( Ntk& ntk, tech_mapping_params const& ps = {}, tech_mapping_st
   static_assert( has_foreach_po_v<Ntk>, "Ntk does not implement the foreach_po method" );
   static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
   static_assert( has_fanout_size_v<Ntk>, "Ntk does not implement the fanout_size method" );
-  static_assert( has_clear_mapping_v<Ntk>, "Ntk does not implement the clear_mapping method" );
-  static_assert( has_add_to_mapping_v<Ntk>, "Ntk does not implement the add_to_mapping method" );
-  static_assert( !StoreFunction || has_set_cell_function_v<Ntk>, "Ntk does not implement the set_cell_function method" );
+  ///static_assert( has_clear_mapping_v<Ntk>, "Ntk does not implement the clear_mapping method" );
+  ///static_assert( has_add_to_mapping_v<Ntk>, "Ntk does not implement the add_to_mapping method" );
+  //static_assert( !StoreFunction || has_set_cell_function_v<Ntk>, "Ntk does not implement the set_cell_function method" );
 
   tech_mapping_stats st;
-  detail::tech_mapping_impl<Ntk, StoreFunction, CutData> p( ntk, ps, st );
-  p.run(ifname);
+  //detail::tech_mapping_impl<Ntk, StoreFunction, CutData> p( ntk, ps, st );
+  detail::tech_mapping_impl<Ntk> p( ntk, ps, st, ifname );
+  p.run();
   if ( ps.verbose )
   {
     st.report();
