@@ -1,9 +1,6 @@
-if (NOT TARGET sparsepp)
-  add_library(sparsepp INTERFACE) # 2018.2
-  target_include_directories(sparsepp SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sparsepp)
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL "8.1.0")
-    target_compile_options(sparsepp INTERFACE -Wno-class-memaccess)
-  endif()
+if (NOT TARGET parallel_hashmap)
+  add_library(parallel_hashmap INTERFACE) # 2020.11
+  target_include_directories(parallel_hashmap SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/parallel_hashmap)
 endif()
 
 if (NOT TARGET fmt)
@@ -85,7 +82,7 @@ if (NOT TARGET libabcesop)
   add_subdirectory(abcesop)
 endif()
 
-if (NOT TARGET matplot)
+if (ENABLE_MATPLOTLIB AND NOT TARGET matplot)
   find_package(Python3 COMPONENTS Development NumPy)
   add_library(matplot INTERFACE)
   target_include_directories(matplot INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/matplot/ ${Python3_INCLUDE_DIRS} ${Python3_NumPy_INCLUDE_DIRS})
