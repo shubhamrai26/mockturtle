@@ -42,6 +42,7 @@
 
 #include "../utils/stopwatch.hpp"
 #include "../views/topo_view.hpp"
+#include "../io/genlib_reader.hpp"
 #include "cut_enumeration.hpp"
 #include "cut_enumeration/mf_cut.hpp"
 
@@ -71,35 +72,6 @@ struct tech_mapping_stats
 namespace detail
 {
    
-    
-std::string find_formula(std::string a)
-{
-    uint32_t lp = a.find( "O=" );
-    return a.substr(lp + 2);
-
-}
-
-inline char * chomp( char *s )
-{
-    char *a, *b, *c;
-    // remove leading spaces
-    for ( b = s; *b; b++ )
-        if ( !isspace(*b) )
-            break;
-    // strsav the string
-    a = strcpy( ABC_ALLOC(char, strlen(b)+1), b );
-    // remove trailing spaces
-    for ( c = a+strlen(a); c > a; c-- )
-        if ( *c == 0 || isspace(*c) )
-            *c = 0;
-        else
-            break;
-    return a;
-}
-
-
-
-
 //template<class Ntk, bool StoreFunction, typename CutData>
 template<class Ntk> 
 class tech_mapping_impl
@@ -115,37 +87,6 @@ public:
           st(st),
           techlib(std::move(techlib))
     {}
-
-    struct gate_struct_t
-    {
-        std::string name;         /* Name of the gate */
-        double area;              /* given area of the gate */
-        double delay;             /* given delay of the gate */
-        std::string formula;      /* the given formula in SOP format */
-        //std::list<T> pins;      /* Total number of pins = input + output */
-        std::string out_name;     /* Name of the output pin */
-        uint8_t n_inputs;         /* number of inputs */ 
-        bool gate0;               /* constant 0 gate */ 
-        bool gate1;               /* constant 1 gate */
-        bool gate_inv;            /* inverter gate */
-        bool universal_gate;      /* To see if you have a gate which is universal */ 
-
-        gate_struct_t ()
-            :area(0),
-            delay(0)
-        {
-        }
-
-        gate_struct_t(const gate_struct_t &g)
-        {
-            name = std::move( g.name );
-            area = g.area;
-            delay = g.delay;
-            formula = std::move( g.formula );
-            out_name = std::move( g.out_name );
-        }
-
-    };
 
     void run()
     {
@@ -172,60 +113,30 @@ public:
         //    compute_mapping<true>();
         //}
 
-        gate_library = read_genlib();
-        //derive_mapping();
+        //gate_library = read_genlib();
+
+        //compute_expression(gate_library);
+        
+        //cut enumeration;
+        auto cuts = cut_enumeration<Ntk, true>( ntk ); /* true enables truth table computation */
+        ntk.foreach_node( [&]( auto n ) {
+                const auto index = ntk.node_to_index( n );
+                for ( auto const& cut : cuts.cuts( index ) )
+                {
+                std::cout << "Cut " << *cut
+                << " with truth table " << kitty::to_hex( cuts.truth_table( *cut ) )
+                << "\n";
+                }
+                } );
+
+        // mapping each cut to standard cells 
+
+
+        // Carry out mapping
+
     }
 
-    std::vector<gate_struct_t> read_genlib()
-    {
-        std::ifstream inf(techlib);
-        if (!inf.is_open())
-        {
-            std::cout << fmt::format( "[i] Unable to open {} file\n", techlib);
-            return {};
-        }
-        std::vector<gate_struct_t> gate_library;
-        std::string line;
-        while ( std::getline (inf,line) )
-        {
-            std::cout << line << '\n';
-            gate_library.emplace_back( populate_gate_entry( line ) );
-        }
-        std::cout << "Total gates read = " << gate_library.size() << std::endl;
-        return gate_library;
-    }
-
-    /*! \brief Read the genlib 
-     *
-     * Please note that the genlib file should not have any comments 
-     */
-    gate_struct_t populate_gate_entry(std::string str)
-    {
-        //if (str.empty())
-        //    return {};
-
-        gate_struct_t g;
-        char *token;
-
-        token =  strtok( &str[0], " \t\r\n");
-        g.name = strtok( NULL, " \t\r\n");
-        g.area = std::stod(strtok( NULL, " \t\r\n" ) );
-        g.out_name = chomp( strtok ( NULL, "=" ) );
-        g.formula = strtok( NULL, ";" ); 
-        token = strtok( NULL, " \t\r\n" );
-
-        while (token && strcmp(token, "PIN") == 0 )
-        {
-            token = strtok( NULL, "  \t\r\n" );
-            token = strtok( NULL, "  \t\r\n" );
-            token = strtok( NULL, "  \t\r\n" );
-            // Takin a simple model of delay here with 1 as the constant
-            g.delay = std::stod( strtok( NULL, "  \t\r\n" ) ) ;
-        }
-        return g;
-    }
-
-
+    
 private:
   Ntk& ntk;
   tech_mapping_params const& ps;
@@ -238,6 +149,7 @@ private:
   std::vector<gate_struct_t> gate_library;
   std::string techlib;   /* technology library */
   std::vector<node<Ntk>> top_order;
+  generic_library<Ntk> glib;
 
   // make the library and include the concept of phases 
   // create cuts for any network 
@@ -285,8 +197,8 @@ private:
 
    .. note::
 
-      The implementation of this algorithm was heavily inspired but the LUT
-      mapping command ``&mf`` in ABC.
+      The implementation of this algorithm was heavily inspired by the tech
+      mapping command ``map`` in ABC.
    \endverbatim
  */
 //template<class Ntk, bool StoreFunction = false, typename CutData = cut_enumeration_mf_cut>

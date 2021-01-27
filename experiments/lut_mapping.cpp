@@ -56,6 +56,10 @@ int main()
     lut_mapping_stats st;
     mapping_view<aig_network, true> mapped_aig{aig};
     lut_mapping<decltype( mapped_aig ), true>( mapped_aig, {}, &st );
+
+    tech_mapping_stats st2;
+    tech_mapping<decltype( mapped_aig )>( mapped_aig, {}, &st2, "rfet.genlib" );
+
     const auto klut = *collapse_mapped_network<klut_network>( mapped_aig );
 
     equivalence_checking_stats ecst;
