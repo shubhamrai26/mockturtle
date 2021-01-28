@@ -24,8 +24,8 @@
  */
 
 /*!
-  \file tech_mapping.hpp
-  \brief tech mapping
+  \file genlib_reader.hpp
+  \brief generic library reader
 
   \author Shubham Rai  
 */
@@ -50,6 +50,7 @@ namespace mockturtle
 struct generic_library_params
 {
     bool verbose{false};
+
 };
 
 struct generic_library_stats
@@ -63,34 +64,35 @@ struct generic_library_stats
 };
 
 struct gate_struct_t
+{
+    std::string name;         /* Name of the gate */
+    double area;              /* given area of the gate */
+    double delay;             /* given delay of the gate */
+    std::string formula;      /* the given formula in SOP format */
+    //std::list<T> pins;      /* Total number of pins = input + output */
+    std::string out_name;     /* Name of the output pin */
+    uint8_t n_inputs;         /* number of inputs */ 
+    bool gate0;               /* constant 0 gate */ 
+    bool gate1;               /* constant 1 gate */
+    bool gate_inv;            /* inverter gate */
+    bool universal_gate;      /* To see if you have a gate which is universal */ 
+
+    gate_struct_t ()
+        :area(0),
+        delay(0)
     {
-        std::string name;         /* Name of the gate */
-        double area;              /* given area of the gate */
-        double delay;             /* given delay of the gate */
-        std::string formula;      /* the given formula in SOP format */
-        //std::list<T> pins;      /* Total number of pins = input + output */
-        std::string out_name;     /* Name of the output pin */
-        uint8_t n_inputs;         /* number of inputs */ 
-        bool gate0;               /* constant 0 gate */ 
-        bool gate1;               /* constant 1 gate */
-        bool gate_inv;            /* inverter gate */
-        bool universal_gate;      /* To see if you have a gate which is universal */ 
+    }
 
-        gate_struct_t ()
-            :area(0),
-            delay(0)
-        {
-        }
-        gate_struct_t(const gate_struct_t &g)
-        {
-            name = std::move( g.name );
-            area = g.area;
-            delay = g.delay;
-            formula = std::move( g.formula );
-            out_name = std::move( g.out_name );
-        }
+    gate_struct_t(const gate_struct_t &g)
+    {
+        name = std::move( g.name );
+        area = g.area;
+        delay = g.delay;
+        formula = std::move( g.formula );
+        out_name = std::move( g.out_name );
+    }
 
-    };
+};
 
 namespace detail
 {
@@ -136,8 +138,6 @@ namespace detail
 template<class Ntk>
 class generic_library
 {
-public: 
-
 public:
     explicit generic_library( Ntk& ntk, generic_library_params const& ps, generic_library_stats& st, std::string techlib )
         : ntk( ntk ),
@@ -154,6 +154,25 @@ public:
         static_assert( has_create_nary_xor_v<Ntk>, "Ntk does not implement the create_nary_xor function" );
     }
 
+    std::vector<gate_struct_t> run(std::string techlib)
+    {
+        read_genlib(techlib);
+        if(genlib.size() > 0)
+        {
+            std::cout << "Total gates read = " << genlib.size() << std::endl;
+            return genlib;
+        }
+        else
+        {
+            std::cout << "No gates in the generic library passed " << techlib;
+            return{};
+
+        }
+
+
+    }
+
+private:
     void read_genlib(std::string techlib)
     {
         std::ifstream inf(techlib);
@@ -179,9 +198,6 @@ public:
      */
     gate_struct_t populate_gate_entry(std::string str)
     {
-        //if (str.empty())
-        //    return {};
-
         gate_struct_t g;
         char *token;
 
@@ -226,8 +242,22 @@ private:
     std::string techlib;
     std::vector<gate_struct_t> genlib;
 
-};
+}; /* class generic_library */
 
 } /* namespace detail */
+
+template<typename Ntk>
+std::vector<gate_struct_t> reading_genlib( Ntk& ntk, generic_library_params const& ps = {}, generic_library_stats *gst = nullptr, std::string genlib = "" )
+{
+    generic_library_stats st;
+    mockturtle::detail::generic_library<Ntk> g( ntk, ps, st, genlib );
+
+    if ( gst )
+    {
+        *gst = st;
+    }
+    
+    return g.run( genlib );
+}
     
 } /* namespace mockturtle */
