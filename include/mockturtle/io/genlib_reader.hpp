@@ -36,6 +36,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <regex>
 
 #include <kitty/constructors.hpp>
 #include <kitty/dynamic_truth_table.hpp>
@@ -76,6 +77,7 @@ struct gate_struct_t
     bool gate1;               /* constant 1 gate */
     bool gate_inv;            /* inverter gate */
     bool universal_gate;      /* To see if you have a gate which is universal */ 
+    kitty::dynamic_truth_table tt;
 
     gate_struct_t ()
         :area(0),
@@ -184,10 +186,11 @@ private:
         std::string line;
         while ( std::getline (inf,line) )
         {
+            if (line[0] == '#' || line.empty())
+                continue;
             std::cout << line << '\n';
             genlib.emplace_back( populate_gate_entry( line ) );
         }
-        std::cout << "Total gates read = " << genlib.size() << std::endl;
     }
 
 
@@ -206,10 +209,13 @@ private:
         g.area = std::stod(strtok( NULL, " \t\r\n" ) );
         g.out_name = chomp( strtok ( NULL, "=" ) );
         g.formula = strtok( NULL, ";" ); 
+        g.formula = std::regex_replace(g.formula, std::regex("^ +| +$|( ) +"), "$1");
         
         auto num_vars = evaluate_numvars(g.formula);
         kitty::dynamic_truth_table tt1(num_vars);
+
         auto res = kitty::create_from_expression(tt1, g.formula);
+        g.tt = tt1;
 
         token = strtok( NULL, " \t\r\n" );
 
@@ -222,17 +228,6 @@ private:
             g.delay = std::stod( strtok( NULL, "  \t\r\n" ) ) ;
         }
         return g;
-    }
-    /*! \brief Compute the Boolean expression  
-     *
-     * Please note that the genlib file should not have any comments 
-     */
-    void compute_expression( std::vector<gate_struct_t> gate_lib )
-    {
-        for(auto g: gate_lib)
-        {
-
-        }
     }
 
 private:
