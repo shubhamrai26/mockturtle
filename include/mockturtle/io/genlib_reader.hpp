@@ -77,7 +77,7 @@ struct gate_struct_t
     bool gate1;               /* constant 1 gate */
     bool gate_inv;            /* inverter gate */
     bool universal_gate;      /* To see if you have a gate which is universal */ 
-    kitty::dynamic_truth_table tt;
+    kitty::dynamic_truth_table tt{6};
 
     gate_struct_t ()
         :area(0),
@@ -86,12 +86,19 @@ struct gate_struct_t
     }
 
     gate_struct_t(const gate_struct_t &g)
+        :name( g.name ),
+         area( g.area ),
+         delay( g.delay ),
+         formula( g.formula ),
+         out_name( g.out_name ),
+         n_inputs( g.n_inputs ),
+         gate0( g.gate0 ),
+         gate1( g.gate1 ),
+         gate_inv( g.gate_inv ),
+         universal_gate( g.universal_gate ),
+         tt( g.tt )
+        
     {
-        name = std::move( g.name );
-        area = g.area;
-        delay = g.delay;
-        formula = std::move( g.formula );
-        out_name = std::move( g.out_name );
     }
 
 };
@@ -191,6 +198,12 @@ private:
             std::cout << line << '\n';
             genlib.emplace_back( populate_gate_entry( line ) );
         }
+
+        // enumerate np configurations for each gate entry 
+        for (auto g : genlib)
+        {
+        }
+        
     }
 
 
@@ -217,6 +230,12 @@ private:
         auto res = kitty::create_from_expression(tt1, g.formula);
         g.tt = tt1;
 
+        if(kitty::is_const0(tt1))
+            g.gate0 = true;
+
+        if(~(kitty::is_const0(tt1)))
+            g.gate1 = true;
+
         token = strtok( NULL, " \t\r\n" );
 
         while (token && strcmp(token, "PIN") == 0 )
@@ -227,6 +246,8 @@ private:
             // Takin a simple model of delay here with 1 as the constant
             g.delay = std::stod( strtok( NULL, "  \t\r\n" ) ) ;
         }
+
+        // Need to add detect_special_gates
         return g;
     }
 

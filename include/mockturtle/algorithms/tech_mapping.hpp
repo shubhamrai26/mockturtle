@@ -51,10 +51,33 @@
 namespace mockturtle
 {
 
+//template<typename TT, typename T>
+struct cut_enumeration_techmap_cut
+{
+  uint32_t delay{0};
+  float flow{0};
+  float cost{0};
+  bool phase{false}; // false for normal and true for complementation
+  std::vector<gate_struct_t> gates;
+};
 
 struct tech_mapping_params
 {
+    tech_mapping_params()
+    {
+        cut_enumeration_ps.cut_size = 6;
+        cut_enumeration_ps.cut_limit = 8;
+    }
+
+    cut_enumeration_params cut_enumeration_ps{};
+
     bool verbose{false};
+
+  /*! \brief carrying out area optimization */    
+    bool area{true};
+
+  /*! \brief carrying out delay optimization */    
+    bool delay{false};
 };
 
 
@@ -69,24 +92,43 @@ struct tech_mapping_stats
   }
 };
 
+/* function to update all cuts after cut enumeration */
+template<typename CutData>
+struct tech_mapping_update_cuts
+{
+  template<typename NetworkCuts, typename Ntk>
+  static void apply( NetworkCuts const& cuts, Ntk const& ntk )
+  {
+    (void)cuts;
+    (void)ntk;
+  }
+};
+
+
+
 namespace detail
 {
    
-//template<class Ntk, bool StoreFunction, typename CutData>
-template<class Ntk> 
+template<class Ntk, bool StoreFunction, typename CutData>
 class tech_mapping_impl
 {
 public:
-    //using network_cuts_t = network_cuts<Ntk, StoreFunction, CutData>;
-    //using cut_t = typename network_cuts_t::cut_t;
+    using network_cuts_t = network_cuts<Ntk, StoreFunction, CutData>;
+    using cut_t = typename network_cuts_t::cut_t;
 
 public:
-    tech_mapping_impl(Ntk& ntk, tech_mapping_params const& ps, tech_mapping_stats& st, std::string techlib)
-        : ntk(ntk), 
-          ps(ps),
-          st(st),
-          techlib(std::move(techlib))
-    {}
+    tech_mapping_impl( Ntk& ntk,  std::vector<gate_struct_t> glib,  tech_mapping_params const& ps, tech_mapping_stats& st )
+        : ntk( ntk ), 
+          gl( glib ),
+          ps( ps ),
+          st( st ),
+          flow_refs( ntk.size() ),
+          flows( ntk.size() ),
+          delays( ntk.size() ),
+          cuts( cut_enumeration<Ntk, StoreFunction, CutData>( ntk, ps.cut_enumeration_ps ) )
+  {
+    tech_mapping_update_cuts<CutData>().apply( cuts, ntk );
+  }
 
     void run()
     {
@@ -97,43 +139,73 @@ public:
                 top_order.push_back( n );
                 } );
 
-        //init_nodes();
-        ////print_state();
-
-        //set_mapping_refs<false>();
-        ////print_state();
-
-        //while ( iteration < ps.rounds )
-        //{
-        //    compute_mapping<false>();
-        //}
-
-        //while ( iteration < ps.rounds + ps.rounds_ela )
-        //{
-        //    compute_mapping<true>();
-        //}
-
-        //gate_library = read_genlib();
-
-        //compute_expression(gate_library);
-        
+        init_nodes();
+   
         //cut enumeration;
-        auto cuts = cut_enumeration<Ntk, true>( ntk ); /* true enables truth table computation */
         ntk.foreach_node( [&]( auto n ) {
                 const auto index = ntk.node_to_index( n );
-                for ( auto const& cut : cuts.cuts( index ) )
+                for ( auto & cut : cuts.cuts( index ) )
                 {
-                std::cout << "Cut " << *cut
-                << " with truth table " << kitty::to_hex( cuts.truth_table( *cut ) )
-                << "\n";
+                    auto neg_tt = ~(cuts.truth_table( *cut ));
+                    std::cout << "Cut " << *cut << std::endl;
+                    //<< " with truth table "; 
+                    //kitty::print_binary( cuts.truth_table( *cut ) );
+                    //std::cout <<std::endl;
+
+                    //auto num_vars = evaluate_numvars()
+
+                    for (auto const& g: gl)
+                    {
+                      if (cuts.truth_table( *cut ) == g.tt) 
+                      {
+                        std::cout << "There is a match" << "with gate" << g.name << std::endl;
+                        cuts.cuts( index )[0]->data.delay = g.delay; 
+                        cuts.cuts( index )[0]->data.gates.emplace_back(g);
+                      }
+                      if (~(cuts.truth_table( *cut )) == g.tt) 
+                      {
+                        std::cout << "There is negative match" << "with gate" << g.name << std::endl;
+                        cuts.cuts( index )[0]->data.delay = g.delay; 
+                        cuts.cuts( index )[0]->data.gates.emplace_back(g);
+                        cuts.cuts( index )[0]->data.phase = true;
+                      }
+                    }
+                    // mapping each cut to standard cells 
+                    //map_cut_to_gates(*cut, gl);
                 }
                 } );
 
-        // mapping each cut to standard cells 
 
 
         // Carry out mapping
 
+    }
+private:
+
+    void init_nodes()
+    {
+        ntk.foreach_node( [this]( auto n, auto ) {
+                const auto index = ntk.node_to_index( n );
+
+                if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
+                {
+                /* all terminals have flow 1.0 */
+                flow_refs[index] = 1.0f;
+                }
+                else
+                {
+                flow_refs[index] = static_cast<float>( ntk.fanout_size( n ) );
+                }
+
+                flows[index] = cuts.cuts( index )[0]->data.flow;
+                delays[index] = cuts.cuts( index )[0]->data.delay;
+                //phase[index] = cuts.cuts( index )[0]->data.phase;
+                } );
+
+    }
+
+    void map_cut_to_gates (cut_t const& cut, std::vector<gate_struct_t> gl)
+    {
     }
 
     
@@ -146,10 +218,15 @@ private:
   uint32_t delay{0};     /* current delay of the mapping */
   uint32_t area{0};      /* current area of the mapping */
 
-  std::vector<gate_struct_t> gate_library;
-  std::string techlib;   /* technology library */
+  std::vector<gate_struct_t> const gl; 
   std::vector<node<Ntk>> top_order;
-  generic_library<Ntk> glib;
+  std::vector<float> flow_refs;
+  std::vector<uint32_t> map_refs;
+  std::vector<float> flows;
+  std::vector<uint32_t> delays;
+  network_cuts_t cuts;
+
+
 
   // make the library and include the concept of phases 
   // create cuts for any network 
@@ -201,9 +278,9 @@ private:
       mapping command ``map`` in ABC.
    \endverbatim
  */
-//template<class Ntk, bool StoreFunction = false, typename CutData = cut_enumeration_mf_cut>
-template<class Ntk>
-void tech_mapping( Ntk& ntk, tech_mapping_params const& ps = {}, tech_mapping_stats* pst = nullptr, std::string ifname = "rfet.genlib")
+template<class Ntk, bool StoreFunction = true, typename CutData = cut_enumeration_techmap_cut>
+//template<class Ntk>
+void tech_mapping( Ntk& ntk,  std::vector<gate_struct_t> const& g, tech_mapping_params const& ps = {}, tech_mapping_stats* pst = nullptr)
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_size_v<Ntk>, "Ntk does not implement the size method" );
@@ -215,13 +292,11 @@ void tech_mapping( Ntk& ntk, tech_mapping_params const& ps = {}, tech_mapping_st
   static_assert( has_foreach_po_v<Ntk>, "Ntk does not implement the foreach_po method" );
   static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
   static_assert( has_fanout_size_v<Ntk>, "Ntk does not implement the fanout_size method" );
-  ///static_assert( has_clear_mapping_v<Ntk>, "Ntk does not implement the clear_mapping method" );
-  ///static_assert( has_add_to_mapping_v<Ntk>, "Ntk does not implement the add_to_mapping method" );
-  //static_assert( !StoreFunction || has_set_cell_function_v<Ntk>, "Ntk does not implement the set_cell_function method" );
+  static_assert( !StoreFunction || has_set_cell_function_v<Ntk>, "Ntk does not implement the set_cell_function method" );
 
   tech_mapping_stats st;
-  //detail::tech_mapping_impl<Ntk, StoreFunction, CutData> p( ntk, ps, st );
-  detail::tech_mapping_impl<Ntk> p( ntk, ps, st, ifname );
+  detail::tech_mapping_impl<Ntk, StoreFunction, CutData> p( ntk, g, ps, st );
+  //detail::tech_mapping_impl<Ntk> p( ntk, ps, st, g);
   p.run();
   if ( ps.verbose )
   {

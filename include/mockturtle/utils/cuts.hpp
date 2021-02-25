@@ -424,6 +424,7 @@ public:
    * \param index Index
    */
   auto const& operator[]( uint32_t index ) const { return *_pcuts[index]; }
+  auto & operator[]( uint32_t index ) { return *_pcuts[index]; }
 
   /*! \brief Returns the best cut, i.e., the first cut.
    */
