@@ -73,9 +73,9 @@ struct gate_struct_t
     //std::list<T> pins;      /* Total number of pins = input + output */
     std::string out_name;     /* Name of the output pin */
     uint8_t n_inputs;         /* number of inputs */ 
-    bool gate0;               /* constant 0 gate */ 
-    bool gate1;               /* constant 1 gate */
-    bool gate_inv;            /* inverter gate */
+    bool gate0{false};               /* constant 0 gate */ 
+    bool gate1{false};               /* constant 1 gate */
+    bool gate_inv{false};            /* inverter gate */
     bool universal_gate;      /* To see if you have a gate which is universal */ 
     kitty::dynamic_truth_table tt{6};
 
@@ -233,7 +233,7 @@ private:
         if(kitty::is_const0(tt1))
             g.gate0 = true;
 
-        if(~(kitty::is_const0(tt1)))
+        if(!(kitty::is_const0(tt1)))
             g.gate1 = true;
 
         token = strtok( NULL, " \t\r\n" );
