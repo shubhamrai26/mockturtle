@@ -542,7 +542,10 @@ public:
    */
   virtual void on_input( uint32_t width, std::string const& name ) const
   {
-    _os << fmt::format( "  input [{}:0] {} ;\n", width - 1 , name );
+    if ( (width - 1) == 0 )
+        _os << fmt::format( "  input {} ;\n", name );
+    else
+        _os << fmt::format( "  input [{}:0] {} ;\n", width - 1 , name );
   }
 
   /*! \brief Callback method for writing multiple single 1-bit input.
@@ -580,7 +583,10 @@ public:
    */
   virtual void on_output( uint32_t width, std::string const& name ) const
   {
-    _os << fmt::format( "  output [{}:0] {} ;\n", width - 1 , name );
+    if ( (width - 1) == 0 )
+        _os << fmt::format( "  output {} ;\n", name );
+    else
+        _os << fmt::format( "  output [{}:0] {} ;\n", width - 1 , name );
   }
 
   /*! \brief Callback method for writing multiple single 1-bit output.

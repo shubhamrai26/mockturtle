@@ -149,9 +149,16 @@ void write_verilog( Ntk const& ntk, std::ostream& os, write_verilog_params const
     {
       inputs.emplace_back( name );
       ctr += width;
-      for ( auto i = 0u; i < width; ++i )
+      if ( width == 1u )
       {
-        xs.emplace_back( fmt::format( "{}[{}]", name, i ) );
+          xs.emplace_back( fmt::format( "{}", name ) );
+      }
+      else
+      {
+          for ( auto i = 0u; i < width; ++i )
+          {
+              xs.emplace_back( fmt::format( "{}[{}]", name, i ) );
+          }
       }
     }
     if ( ctr != ntk.num_pis() )
@@ -174,9 +181,16 @@ void write_verilog( Ntk const& ntk, std::ostream& os, write_verilog_params const
     {
       outputs.emplace_back( name );
       ctr += width;
-      for ( auto i = 0u; i < width; ++i )
+      if ( width == 1u )
       {
-        ys.emplace_back( fmt::format( "{}[{}]", name, i ) );
+          ys.emplace_back( fmt::format( "{}", name ) );
+      }
+      else
+      {
+          for ( auto i = 0u; i < width; ++i )
+          {
+              ys.emplace_back( fmt::format( "{}[{}]", name, i ) );
+          }
       }
     }
     if ( ctr != ntk.num_pos() )
